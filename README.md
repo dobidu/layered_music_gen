@@ -1,2 +1,2 @@
-# layered_music_gen
+# Layered (Random) Music Generator
 Random (and 'coherent') Music Generator
