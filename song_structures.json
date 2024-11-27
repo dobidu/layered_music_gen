@@ -1,0 +1,27 @@
+{
+    "common_structures": [
+        ["intro", "verse", "chorus", "verse", "chorus", "bridge", "chorus", "outro"],
+        ["verse", "chorus", "verse", "chorus", "bridge", "chorus"],
+        ["chorus", "verse", "chorus", "bridge", "verse", "chorus"],
+        ["intro", "verse", "chorus", "verse", "chorus", "outro"],
+        ["verse", "chorus", "verse", "chorus", "bridge", "chorus", "outro"],
+        ["intro", "verse", "chorus", "verse", "chorus", "bridge", "outro"],
+        ["intro", "verse", "chorus", "bridge", "verse", "chorus"],
+        ["intro", "verse", "chorus", "verse", "bridge", "chorus"],
+        ["intro", "verse", "chorus", "bridge", "chorus"],
+        ["intro", "verse", "chorus", "outro"],
+        ["verse", "chorus", "outro"],
+        ["chorus", "verse", "chorus", "outro"],
+        ["intro", "verse", "chorus", "outro"],
+        ["verse", "chorus", "outro"],
+        ["chorus", "verse", "chorus", "outro"],
+        ["intro", "verse", "chorus", "bridge", "chorus", "outro"],
+        ["verse", "chorus", "bridge", "chorus", "outro"],
+        ["chorus", "verse", "chorus", "bridge", "verse", "chorus", "outro"],
+        ["intro", "verse", "chorus", "bridge", "verse", "chorus", "outro"],
+        ["intro", "verse", "chorus", "bridge", "chorus", "outro"],
+        ["intro", "verse", "chorus", "bridge", "chorus"],
+        ["intro", "verse", "bridge", "chorus", "verse", "chorus", "outro"],
+        ["intro", "verse", "chorus", "verse", "bridge", "chorus", "outro"]
+    ]
+}

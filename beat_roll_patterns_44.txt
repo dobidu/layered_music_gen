@@ -1,0 +1,185 @@
+intro: 36, 0, 38, 0
+intro: 36, 42, 38, 42
+intro: 36, 42, 38, 0
+intro: 36, 0, 38, 42
+intro: 0, 42, 38, 0
+intro: 36, 0, 38, 0
+intro: 0, 42, 0, 0
+intro: 51, 36, 38, 0
+intro: 36, 0, 38, 51
+intro: 36, 38, 51, 42
+intro: 36, 51, 38, 0
+intro: 49, 42, 38, 0
+intro: 49, 0, 38, 42
+intro: 36, 49, 38, 0
+intro: 36, 0, 49, 42
+intro: 36, 42, 49, 51
+intro: 36, 0, 38, 0, 51
+intro: 36, 42, 38, 42, 49
+intro: 36, 42, 38, 0, 51
+intro: 36, 0, 38, 42, 49
+intro: 0, 42, 38, 0, 51
+intro: 36, 0, 38, 0, 49
+intro: 0, 42, 0, 0, 51
+intro: 51, 36, 38, 0, 42
+intro: 36, 0, 38, 51, 42
+intro: 36, 38, 51, 42, 49
+intro: 36, 51, 38, 0, 42
+intro: 49, 42, 38, 0, 51
+intro: 49, 0, 38, 42, 36
+intro: 36, 49, 38, 0, 51
+intro: 36, 0, 49, 42, 38
+intro: 36, 42, 49, 51, 0
+intro_roll: 36, 0, 38, 38
+intro_roll: 38, 38, 38, 38
+intro_roll: 38, 38, 0, 36
+intro_roll: 38, 38, 38, 36
+intro_roll: 36, 38, 38, 38
+intro_roll: 42, 38, 38, 38
+intro_roll: 38, 38, 38, 42
+verse: 36, 0, 38, 0
+verse: 36, 0, 38, 42
+verse: 36, 42, 38, 42
+verse: 36, 42, 36, 38
+verse: 36, 42, 38, 0
+verse: 36, 0, 38, 42
+verse: 36, 42, 0, 42
+verse: 36, 42, 38, 42
+verse: 36, 0, 38, 0
+verse: 36, 0, 38, 51
+verse: 36, 42, 38, 42
+verse: 36, 51, 36, 38
+verse: 36, 42, 38, 0
+verse: 36, 0, 38, 42
+verse: 36, 42, 0, 42
+verse: 36, 42, 38, 42
+verse: 36, 0, 38, 0
+verse: 36, 0, 49, 42
+verse: 36, 42, 49, 51
+verse: 36, 0, 38, 42
+verse: 36, 42, 38, 0
+verse: 36, 0, 38, 42
+verse: 36, 42, 0, 42
+verse: 36, 42, 38, 42
+verse: 36, 0, 38, 0
+verse: 36, 0, 49, 42
+verse: 36, 42, 49, 51
+verse: 36, 0, 38, 42
+verse: 36, 42, 38, 0
+verse_roll: 36, 0, 38, 38
+verse_roll: 38, 38, 38, 38
+verse_roll: 38, 38, 0, 36
+verse_roll: 38, 38, 38, 36
+verse_roll: 36, 38, 38, 38
+verse_roll: 42, 38, 38, 38
+verse_roll: 38, 38, 38, 42
+chorus: 36, 0, 38, 0
+chorus: 36, 0, 38, 42
+chorus: 36, 42, 38, 42
+chorus: 36, 42, 36, 38
+chorus: 36, 42, 38, 42
+chorus: 36, 0, 38, 0
+chorus: 36, 0, 42, 42
+chorus: 36, 42, 0, 38
+chorus: 36, 0, 42, 0
+chorus: 36, 0, 38, 51
+chorus: 36, 42, 38, 42
+chorus: 36, 51, 36, 38
+chorus: 36, 42, 38, 0
+chorus: 36, 0, 38, 42
+chorus: 36, 42, 0, 42
+chorus: 36, 42, 38, 42
+chorus: 36, 0, 38, 0
+chorus: 36, 0, 49, 42
+chorus: 36, 42, 49, 51
+chorus: 36, 0, 38, 42
+chorus: 36, 42, 38, 0
+chorus: 36, 0, 38, 42
+chorus: 36, 42, 0, 42
+chorus: 36, 42, 38, 42
+chorus: 36, 0, 38, 0
+chorus: 36, 0, 49, 42
+chorus: 36, 42, 49, 51
+chorus: 36, 0, 38, 42
+chorus: 36, 42, 38, 0
+chorus_roll: 36, 0, 38, 38
+chorus_roll: 38, 38, 38, 38
+chorus_roll: 38, 38, 0, 36
+chorus_roll: 38, 38, 38, 36
+chorus_roll: 36, 38, 38, 38
+chorus_roll: 42, 38, 38, 38
+chorus_roll: 38, 38, 38, 42
+bridge: 36, 0, 38, 0
+bridge: 36, 0, 38, 42
+bridge: 36, 42, 38, 42
+bridge: 36, 42, 36, 38
+bridge: 36, 42, 38, 42
+bridge: 36, 0, 38, 0
+bridge: 36, 0, 42, 42
+bridge: 36, 42, 0, 38
+bridge: 36, 0, 42, 0
+bridge: 36, 0, 38, 51
+bridge: 36, 42, 38, 42
+bridge: 36, 51, 36, 38
+bridge: 36, 42, 38, 0
+bridge: 36, 0, 38, 42
+bridge: 36, 42, 0, 42
+bridge: 36, 42, 38, 42
+bridge: 36, 0, 38, 0
+bridge: 36, 0, 49, 42
+bridge: 36, 42, 49, 51
+bridge: 36, 0, 38, 42
+bridge: 36, 42, 38, 0
+bridge: 36, 0, 38, 42
+bridge: 36, 42, 0, 42
+bridge: 36, 42, 38, 42
+bridge: 36, 0, 38, 0
+bridge: 36, 0, 49, 42
+bridge: 36, 42, 49, 51
+bridge: 36, 0, 38, 42
+bridge: 36, 42, 38, 0
+bridge_roll: 36, 0, 38, 38
+bridge_roll: 38, 38, 38, 38
+bridge_roll: 38, 38, 0, 36
+bridge_roll: 38, 38, 38, 36
+bridge_roll: 36, 38, 38, 38
+bridge_roll: 42, 38, 38, 38
+bridge_roll: 38, 38, 38, 42
+outro: 36, 0, 38, 0
+outro: 36, 42, 38, 42
+outro: 36, 42, 38, 0
+outro: 36, 0, 38, 42
+outro: 0, 42, 38, 0
+outro: 36, 0, 38, 0
+outro: 0, 42, 0, 0
+outro: 51, 36, 38, 0
+outro: 36, 0, 38, 51
+outro: 36, 38, 51, 42
+outro: 36, 51, 38, 0
+outro: 49, 42, 38, 0
+outro: 49, 0, 38, 42
+outro: 36, 49, 38, 0
+outro: 36, 0, 49, 42
+outro: 36, 42, 49, 51
+outro: 36, 0, 38, 42, 49
+outro: 36, 42, 38, 0, 51
+outro: 36, 0, 38, 42, 49
+outro: 0, 42, 38, 0, 51
+outro: 36, 0, 38, 0, 49
+outro: 0, 42, 0, 0, 51
+outro: 51, 36, 38, 0, 42
+outro: 36, 0, 38, 51, 42
+outro: 36, 38, 51, 42, 49
+outro: 36, 51, 38, 0, 42
+outro: 49, 42, 38, 0, 51
+outro: 49, 0, 38, 42, 36
+outro: 36, 49, 38, 0, 51
+outro: 36, 0, 49, 42, 38
+outro: 36, 42, 49, 51, 0
+outro_roll: 36, 0, 38, 38
+outro_roll: 38, 38, 38, 38
+outro_roll: 38, 38, 0, 36
+outro_roll: 38, 38, 38, 36
+outro_roll: 36, 38, 38, 38
+outro_roll: 42, 38, 38, 38
+outro_roll: 38, 38, 38, 42
