@@ -7,13 +7,15 @@ A Python-based system for generating synthesized musical pieces for Music Inform
 - Multi-layer music generation (melody, harmony, bass, and percussion)
 - Support for multiple time signatures (4/4, 3/4, 2/4, 6/8, 5/4, 7/8, 12/8)
 - Dynamic song structure generation
-- Intelligent musical arrangement
+- Dynamic musical arrangement
 - MIDI and WAV file generation
 - Audio effects processing through virtual pedalboard
 - Musicality scoring system
 - Support for various musical scales and modes
 - Markov chain-based melodic generation
 - Automated mixing and mastering
+- Detailed music description Metadata 
+- Beat annotation generation using the `beat_annotator.py` script
 
 ## Requirements
 
@@ -73,6 +75,20 @@ The generator creates:
 - MIDI files for each musical layer
 - WAV files for the final mix
 - JSON metadata file with musical parameters and analysis
+
+## Beat Annotation Generation
+
+The `beat_annotator.py` script is used to generate beat annotations for the generated music pieces. It reads the JSON metadata file and the corresponding MIDI files, then produces a text file containing the beat timestamps and beat numbers.
+
+To use the beat annotation tool:
+
+```bash
+python beat_annotator.py <instance_dir>
+```
+
+Replace `<instance_dir>` with the path to the directory containing the JSON and MIDI files for the instance you want to generate beat annotations for.
+
+The beat annotation file will be saved in the same directory as the other generated files.
 
 ## Configuration Files
 
@@ -143,4 +159,3 @@ See LICENSE
 - Built with music21 and librosa
 - Uses FluidSynth for MIDI synthesis
 - Pedalboard for audio effects processing
-
