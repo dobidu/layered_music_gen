@@ -478,6 +478,7 @@ def generate_beat(tempo, time_signature, measures, name, part):
         "2/4": "beat_roll_patterns_24.txt",
         "4/4": "beat_roll_patterns_44.txt",
         "3/4": "beat_roll_patterns_34.txt",
+        "5/4": "beat_roll_patterns_54.txt",
         "6/8": "beat_roll_patterns_68.txt",
         "7/8": "beat_roll_patterns_78.txt",
         "12/8": "beat_roll_patterns_128.txt"
