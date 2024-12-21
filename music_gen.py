@@ -469,9 +469,17 @@ def generate_bassline(key, tempo, time_signature, measures, name, part, chord_pr
         
     return filename
 
-def generate_beat(tempo, time_signature, measures, name, part):
+def beat_duration(signature: str, tempo: int) -> float:
     """
-    Generate a drum beat based on a time signature.
+    Calculates the duration of a beat based on the time signature and BPM.
+    """
+    numerator, denominator = map(int, signature.split('/'))
+    beat_length = 60 / tempo  # Duration of a quarter note
+    return beat_length * (4 / denominator)
+
+def generate_beat(part: str, tempo: int, time_signature: str, measures: int, name: str) -> Tuple[str, List[float]]:
+    """
+    Generate a drum beat based on a time signature and generate beat annotations.
     """
     validator = DurationValidator()
     beat_pattern_files = {
@@ -479,6 +487,88 @@ def generate_beat(tempo, time_signature, measures, name, part):
         "4/4": "beat_roll_patterns_44.txt",
         "3/4": "beat_roll_patterns_34.txt",
         "5/4": "beat_roll_patterns_54.txt",
+        "6/8": "beat_roll_patterns_68.txt",
+        "7/8": "beat_roll_patterns_78.txt",
+        "12/8": "beat_roll_patterns_128.txt"
+    }
+
+    mf = MIDIFile(1)
+    track = 0
+    time = 0
+
+    mf.addTrackName(track, time, "Beat")
+    mf.addTempo(track, time, tempo)
+
+    # Adds correct time signature
+    numerator, midi_denominator = get_midi_time_signature_values(time_signature)
+    mf.addTimeSignature(track, time, numerator, midi_denominator, 24, 8)
+
+    base_duration = validator.get_suggested_duration(time_signature, 'beat')
+
+    kick = 36
+    snare = 38
+    hihat = 42
+
+    # Reads beat patterns from file
+    filename = beat_pattern_files.get(time_signature)
+    if not filename:
+        raise ValueError(f"Time signature {time_signature} not supported.")
+
+    beat_patterns = {}
+    with open(filename, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                parts = line.split(':')
+                song_part = parts[0].strip()
+                pattern = [int(x) for x in parts[1].split(',')]
+                if verify_beat_pattern(pattern, time_signature):
+                    beat_patterns.setdefault(song_part, []).append(pattern)
+
+    # Creates a basic pattern if not found
+    if part not in beat_patterns or not beat_patterns[part]:
+        base_pattern = [kick, hihat] if numerator == 2 else [kick, hihat, snare]
+        beat_patterns[part] = [base_pattern]
+
+    # Generates pattern for the part
+    beat_pattern = random.choice(beat_patterns[part])
+    beat = beat_pattern * (measures - 1)
+
+    # Adds a roll at the end
+    roll_part = part + "_roll"
+    roll_pattern = random.choice(beat_patterns.get(roll_part, [beat_pattern]))
+    beat.extend(roll_pattern)
+
+    # Adds notes to MIDI file and generate annotations
+    annotations = []
+    current_time = 0.0
+    for drum_hit in beat:
+        if drum_hit != 0:
+            mf.addNote(track, 9, drum_hit, current_time, base_duration, 100)
+            annotations.append(f"{current_time:.3f}\t{len(annotations) + 1}")
+        current_time += base_duration
+
+    # Saves MIDI file
+    directory = name.split('-')[0]
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    midi_filename = os.path.join(directory, f"{name}-beat.mid")
+
+    with open(midi_filename, 'wb') as outf:
+        mf.writeFile(outf)
+
+    return midi_filename, annotations
+
+#def generate_beat(tempo, time_signature, measures, name, part):
+    """
+    Generate a drum beat based on a time signature.
+    """
+"""
+    validator = DurationValidator()
+    beat_pattern_files = {
+        "2/4": "beat_roll_patterns_24.txt",
+        "4/4": "beat_roll_patterns_44.txt",
+        "3/4": "beat_roll_patterns_34.txt",
         "6/8": "beat_roll_patterns_68.txt",
         "7/8": "beat_roll_patterns_78.txt",
         "12/8": "beat_roll_patterns_128.txt"
@@ -549,11 +639,39 @@ def generate_beat(tempo, time_signature, measures, name, part):
         mf.writeFile(outf)
 
     return midi_filename
+"""
 
 def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_pat_file):
     """
     Generate all parts of a song based on key, tempo, time signatures and measures.
     """
+    harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations = {}, {}, {}, {}, {}
+
+    for part, measures in song_measures.items():
+        print(f"Generating part: {part} ({measures} measures)")
+        name_part = f"{name}-{part}"
+        time_signature = song_signatures[part]
+
+        chord_progression, harm_filename[part] = generate_chord_progression(
+            key, tempo, time_signature, measures, name_part, part, chord_pat_file
+        )
+        melody, melo_filename[part] = generate_melody(
+            key, tempo, time_signature, measures, name_part, part, chord_progression
+        )
+        bass_filename[part] = generate_bassline(
+            key, tempo, time_signature, measures, name_part, part, chord_progression, melody
+        )
+        beat_filename[part], beat_annotations[part] = generate_beat(
+            part, tempo, time_signature, measures, name_part
+        )
+
+    return harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations
+
+#def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_pat_file):
+    """
+    Generate all parts of a song based on key, tempo, time signatures and measures.
+    """
+    """ 
     harm_filename, bass_filename, melo_filename, beat_filename = {}, {}, {}, {}
 
     for part, measures in song_measures.items():
@@ -575,7 +693,18 @@ def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_
         )
 
     return harm_filename, bass_filename, melo_filename, beat_filename
+    """
 
+def save_beat_annotations(name, beat_annotations):
+    # Extract the directory name from the song name
+    instance_dir = os.path.dirname(name)
+    output_file = os.path.join(instance_dir, f"{name}-beats.txt")
+    with open(output_file, 'w') as f:
+        for part, annotations in beat_annotations.items():
+            timestamps = [f"{timestamp:.3f}" for timestamp in annotations]
+            f.write(f"{part}: {', '.join(timestamps)}\n")
+
+    print(f"Beat annotations saved to: {output_file}")
 
 def generate_song_arrangement(structures_file: str = 'song_structures.json') -> Tuple[List[str], List[str]]:
     """
@@ -857,10 +986,11 @@ def create_song(key, tempo, song_signatures, measures, name, chord_pat_file):
 
     start_time = time.time()
     
-    ha, ba, me, be = generate_song_parts(key, tempo, song_signatures, measures, song_name, chord_pat_file)
-    wav_name, arrangement, transitions, soundfonts, pedalboards, part_layers = mix_and_save(ha, ba, me, be, song_name)
-    
+    ha, ba, me, be, an = generate_song_parts(key, tempo, song_signatures, measures, song_name, chord_pat_file)
+    wav_name, arrangement, transitions, soundfonts, pedalboards, part_layers = mix_and_save(ha, ba, me, be, song_name)    
     end_time = time.time()
+
+    # save_beat_annotations(song_name, an)
     
     song_info['file_name'] = wav_name
     song_info['arrangement'] = arrangement
