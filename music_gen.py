@@ -1,5 +1,5 @@
 from midiutil import MIDIFile
-from music21 import *
+from music21 import roman, scale, pitch
 from pydub import AudioSegment
 from midi2audio import FluidSynth
 from datetime import datetime
@@ -284,26 +284,31 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
 
     # Determine which notes to use based on song part and chord progression
     if part == 'intro':
-        notes_to_use = chords[0].pitches
+        notes_to_use = [chords[0].pitches[0]]
     elif part == 'outro':
-        notes_to_use = chords[-1].pitches
+        notes_to_use = [chords[-1].pitches[0]]
     else:
-        notes_to_use = []
-        for chord in chords:
-            notes_to_use.extend(chord.pitches)
+        notes_to_use = [chord.pitches[0] for chord in chords]
+
+    # Debug statement to check the notes_to_use
+    print(f"Notes to use for part {part}: {notes_to_use}")
+
+    if not notes_to_use:
+        raise ValueError("The list of notes to use is empty")
 
     # Define the Markov chain transition matrix
-    # This matrix defines the probabilities of transitioning from one note to another
     transition_matrix = {}
     for note in notes_to_use:
         transition_matrix[note.midi] = {}
         for next_note in notes_to_use:
-            if next_note in chord_obj.pitches:
-                transition_matrix[note.midi][next_note.midi] = 1 / len(notes_to_use)
-            else:
-                transition_matrix[note.midi][next_note.midi] = 0
+            transition_matrix[note.midi][next_note.midi] = 1 / len(notes_to_use)
 
-    # Generate a random melody using a Markov chain
+    # Debug statement to check the transition matrix
+    print(f"Transition matrix: {transition_matrix}")
+
+    # Generate a random bassline using a Markov chain
+    bassline = []
+
     # Generate melody with correct note durations
     melody = []
     note_durations = []
@@ -311,6 +316,8 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
     remaining_beats = total_beats
 
     current_note = random.choice([note.midi for note in notes_to_use])
+
+
 
     # Choose the initial note randomly
     while remaining_beats > 0:
@@ -791,16 +798,29 @@ def generate_pedalboard(effect_params_file):
                     if effect is not None])
     return board
     
-def apply_fx_to_layer(wav_file, board):
-    # Apply the pedalboard effects to the input file        
-    with AudioFile(wav_file) as af:
-        with AudioFile(wav_file+'_fx.wav', 'w', af.samplerate, af.num_channels) as of:        
-            while af.tell() < af.frames:
-                chunk = af.read(af.samplerate)
-                effected = board(chunk, af.samplerate, reset=False)
-                of.write(effected)
+# def apply_fx_to_layer(wav_file, board):
+#     # Apply the pedalboard effects to the input file        
+#     with AudioFile(wav_file) as af:
+#         with AudioFile(wav_file+'_fx.wav', 'w', af.samplerate, af.num_channels) as of:        
+#             while af.tell() < af.frames:
+#                 chunk = af.read(af.samplerate)
+#                 effected = board(chunk, af.samplerate, reset=False)
+#                 of.write(effected)
               
-    return wav_file+'_fx.wav'
+#     return wav_file+'_fx.wav'
+
+def apply_fx_to_layer(wav_file, board):
+    # Skip applying effects
+    with AudioFile(wav_file) as f:
+        audio = f.read(f.frames)
+        samplerate = f.samplerate
+
+    # Directly write the audio without effects
+    output_file = wav_file.replace(".wav", "_no_fx.wav")
+    with AudioFile(output_file, 'w', samplerate, audio.shape[0]) as f:
+        f.write(audio)
+
+    return output_file
 
 def pedalboard_info_json(board):
     pedals_and_parameters = []
@@ -838,6 +858,7 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     soundfonts = {}
     pedalboards = {}
     #TODO: configure soundfont directory 
+    print(str(os.path.join('sf','melody')))
     beat_soundfont = get_random_sound_font(str(os.path.join('sf','beat')))
     melody_soundfont = get_random_sound_font(str(os.path.join('sf','melody')))
     harmony_soundfont = get_random_sound_font(str(os.path.join('sf','harmony')))
@@ -846,10 +867,10 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     soundfonts['melody'] = melody_soundfont
     soundfonts['harmony'] = harmony_soundfont
     soundfonts['bassline'] = bassline_soundfont    
-    print("Beat soundfont: " + beat_soundfont)
-    print("Melody soundfont: " + melody_soundfont)
-    print("Harmony soundfont: " + harmony_soundfont)
-    print("Bassline soundfont: " + bassline_soundfont)
+    # print("Beat soundfont: " + beat_soundfont)
+    # print("Melody soundfont: " + melody_soundfont)
+    # print("Harmony soundfont: " + harmony_soundfont)
+    # print("Bassline soundfont: " + bassline_soundfont)
     beat_board = generate_pedalboard('beat_fx.json')
     melody_board = generate_pedalboard('melody_fx.json')
     harmony_board = generate_pedalboard('harmony_fx.json')
@@ -858,10 +879,10 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     pedalboards['melody'] = pedalboard_info_json(melody_board)
     pedalboards['harmony'] = pedalboard_info_json(harmony_board)
     pedalboards['bassline'] = pedalboard_info_json(bassline_board)
-    print("Beat pedalboard: " + str(beat_board))
-    print("Melody pedalboard: " + str(melody_board))
-    print("Harmony pedalboard: " + str(harmony_board))
-    print("Bassline pedalboard: " + str(bassline_board))
+    # print("Beat pedalboard: " + str(beat_board))
+    # print("Melody pedalboard: " + str(melody_board))
+    # print("Harmony pedalboard: " + str(harmony_board))
+    # print("Bassline pedalboard: " + str(bassline_board))
     # TODO: gather all file references in a single config file
     inst_proba = read_instrument_probabilities('inst_probabilities.json')
     levels = {}

@@ -1,0 +1,229 @@
+{
+    "key": "D",
+    "tempo": 83,
+    "measures": {
+        "intro": 32,
+        "verse": 32,
+        "chorus": 32,
+        "bridge": 21,
+        "outro": 32
+    },
+    "time_signatures": {
+        "intro": "6/8",
+        "verse": "2/4",
+        "chorus": "2/4",
+        "bridge": "3/4",
+        "outro": "2/4"
+    },
+    "name": "20250127163609544007",
+    "file_name": "20250127163609544007/20250127163609544007.wav",
+    "arrangement": [
+        "verse",
+        "chorus",
+        "outro"
+    ],
+    "transitions": [
+        [
+            "verse",
+            0
+        ],
+        [
+            "chorus",
+            48.55
+        ],
+        [
+            "outro",
+            96.81698412698412
+        ],
+        [
+            "end",
+            145.3669841269841
+        ]
+    ],
+    "soundfonts": {
+        "beat": "sf/beat/TamaRockSTAR.sf2",
+        "melody": "sf/melody/60s_Rock_Guitar.sf2",
+        "harmony": "sf/harmony/60s_Rock_Guitar.sf2",
+        "bassline": "sf/bassline/Bass Guitars.sf2"
+    },
+    "pedalboards": {
+        "beat": [
+            {
+                "name": "Compressor",
+                "parameters": {
+                    "attack_ms": "36.706939697265625",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "ratio": "12.895424842834473",
+                    "release_ms": "43.15041732788086",
+                    "threshold_db": "-10.06902027130127"
+                }
+            },
+            {
+                "name": "Gain",
+                "parameters": {
+                    "gain_db": "14.019654273986816",
+                    "is_effect": "True",
+                    "is_instrument": "False"
+                }
+            },
+            {
+                "name": "Reverb",
+                "parameters": {
+                    "damping": "0.5",
+                    "dry_level": "0.4000000059604645",
+                    "freeze_mode": "0.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "room_size": "0.8783776164054871",
+                    "wet_level": "0.33000001311302185",
+                    "width": "1.0"
+                }
+            }
+        ],
+        "melody": [
+            {
+                "name": "Gain",
+                "parameters": {
+                    "gain_db": "17.1444091796875",
+                    "is_effect": "True",
+                    "is_instrument": "False"
+                }
+            },
+            {
+                "name": "Delay",
+                "parameters": {
+                    "delay_seconds": "0.4024198353290558",
+                    "feedback": "0.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "mix": "0.48264777660369873"
+                }
+            },
+            {
+                "name": "Reverb",
+                "parameters": {
+                    "damping": "0.5",
+                    "dry_level": "0.4000000059604645",
+                    "freeze_mode": "0.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "room_size": "0.6459459066390991",
+                    "wet_level": "0.33000001311302185",
+                    "width": "1.0"
+                }
+            }
+        ],
+        "harmony": [
+            {
+                "name": "Delay",
+                "parameters": {
+                    "delay_seconds": "0.37774261832237244",
+                    "feedback": "0.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "mix": "0.42010512948036194"
+                }
+            },
+            {
+                "name": "Reverb",
+                "parameters": {
+                    "damping": "0.5",
+                    "dry_level": "0.4000000059604645",
+                    "freeze_mode": "0.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "room_size": "0.8964952230453491",
+                    "wet_level": "0.33000001311302185",
+                    "width": "1.0"
+                }
+            }
+        ],
+        "bassline": [
+            {
+                "name": "Compressor",
+                "parameters": {
+                    "attack_ms": "78.99536895751953",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "ratio": "24.84245491027832",
+                    "release_ms": "40.78056335449219",
+                    "threshold_db": "-41.18821716308594"
+                }
+            },
+            {
+                "name": "Gain",
+                "parameters": {
+                    "gain_db": "7.7914886474609375",
+                    "is_effect": "True",
+                    "is_instrument": "False"
+                }
+            },
+            {
+                "name": "Chorus",
+                "parameters": {
+                    "centre_delay_ms": "7.0",
+                    "depth": "0.0",
+                    "feedback": "0.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "mix": "0.5",
+                    "rate_hz": "0.0"
+                }
+            },
+            {
+                "name": "LadderFilter",
+                "parameters": {
+                    "BPF12": "Mode.BPF12",
+                    "BPF24": "Mode.BPF24",
+                    "HPF12": "Mode.HPF12",
+                    "HPF24": "Mode.HPF24",
+                    "LPF12": "Mode.LPF12",
+                    "LPF24": "Mode.LPF24",
+                    "cutoff_hz": "474.7326965332031",
+                    "drive": "1.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "mode": "Mode.LPF12",
+                    "resonance": "0.7115291953086853"
+                }
+            },
+            {
+                "name": "Reverb",
+                "parameters": {
+                    "damping": "0.5",
+                    "dry_level": "0.4000000059604645",
+                    "freeze_mode": "0.0",
+                    "is_effect": "True",
+                    "is_instrument": "False",
+                    "room_size": "0.5546182990074158",
+                    "wet_level": "0.33000001311302185",
+                    "width": "1.0"
+                }
+            }
+        ]
+    },
+    "part_layers": {
+        "intro": [],
+        "verse": [
+            "beat",
+            "melody"
+        ],
+        "chorus": [
+            "beat",
+            "melody",
+            "harmony",
+            "bassline"
+        ],
+        "bridge": [],
+        "outro": [
+            "beat",
+            "melody",
+            "bassline"
+        ]
+    },
+    "musicality": {
+        "score": 0.0,
+        "components": {}
+    }
+}
