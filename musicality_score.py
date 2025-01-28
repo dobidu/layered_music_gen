@@ -220,6 +220,18 @@ class MusicalityAnalyzer:
             rhythm_scores = self.analyze_rhythm(y, sr)
             noise_scores = self.analyze_noise(y, sr)
 
+            # Ensure all values are scalar
+            tempo_scores = {k: (np.mean(v) if isinstance(v, np.ndarray) else v) for k, v in tempo_scores.items()}
+            harmony_scores = {k: (np.mean(v) if isinstance(v, np.ndarray) else v) for k, v in harmony_scores.items()}
+            rhythm_scores = {k: (np.mean(v) if isinstance(v, np.ndarray) else v) for k, v in rhythm_scores.items()}
+            noise_scores = {k: (np.mean(v) if isinstance(v, np.ndarray) else v) for k, v in noise_scores.items()}
+
+            # Debugging: Print shapes of the outputs
+            # print(f"Tempo scores: {tempo_scores}")
+            # print(f"Harmony scores: {harmony_scores}")
+            # print(f"Rhythm scores: {rhythm_scores}")
+            # print(f"Noise scores: {noise_scores}")
+
             # Calculate component scores with calibration
             scores = {
                 'tempo': np.mean(list(tempo_scores.values())) * self.calibration['tempo'],
@@ -231,10 +243,7 @@ class MusicalityAnalyzer:
             # Clip scores to [0, 1] range
             scores = {k: np.clip(v, 0, 1) for k, v in scores.items()}
 
-            # Calculate total score
-            total_score = sum(scores[k] * self.weights[k] for k in scores.keys())
-
-            return total_score, scores
+            return np.mean(list(scores.values())), scores
 
         except Exception as e:
             self.logger.error(f"Error processing file {filename}: {str(e)}")

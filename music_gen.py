@@ -19,6 +19,30 @@ from typing import Tuple, Dict, List
 import math
 
 
+def generate_transition_chords(chord_progression1, chord_progression2, key):
+    """
+    Generate transition chords between two chord progressions.
+    """
+    transition_chords = []
+    # Use the last chord of the first progression and the first chord of the second progression
+    last_chord = roman.RomanNumeral(chord_progression1[-1], key)
+    first_chord = roman.RomanNumeral(chord_progression2[0], key)
+    
+    # Create a simple transition by moving stepwise between the two chords
+    transition_chords.append(last_chord)
+    if last_chord != first_chord:
+        transition_chords.append(first_chord)
+    
+    return transition_chords
+
+def adjust_time_signature_transition(time_signature1, time_signature2):
+    """
+    Adjust time signature transition between two parts.
+    """
+    # For simplicity, just return the second time signature
+    return time_signature2
+
+
 def verify_pattern_for_time_signature(chord_pattern: List[str], time_signature: str) -> bool:
     """
     Checks if the chord pattern is appropriate for the time signature.
@@ -654,6 +678,9 @@ def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_
     """
     harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations = {}, {}, {}, {}, {}
 
+    previous_chord_progression = None
+    previous_time_signature = None
+
     for part, measures in song_measures.items():
         print(f"Generating part: {part} ({measures} measures)")
         name_part = f"{name}-{part}"
@@ -662,6 +689,16 @@ def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_
         chord_progression, harm_filename[part] = generate_chord_progression(
             key, tempo, time_signature, measures, name_part, part, chord_pat_file
         )
+
+        if previous_chord_progression:
+            transition_chords = generate_transition_chords(previous_chord_progression, chord_progression, key)
+            transition_time_signature = adjust_time_signature_transition(previous_time_signature, time_signature)
+            transition_name_part = f"{name}-transition-{part}"
+            transition_measures = 2  # Example: 2 measures for transition
+            generate_chord_progression(
+                key, tempo, transition_time_signature, transition_measures, transition_name_part, part, chord_pat_file
+            )
+
         melody, melo_filename[part] = generate_melody(
             key, tempo, time_signature, measures, name_part, part, chord_progression
         )
@@ -672,35 +709,10 @@ def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_
             part, tempo, time_signature, measures, name_part
         )
 
+        previous_chord_progression = chord_progression
+        previous_time_signature = time_signature
+
     return harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations
-
-#def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_pat_file):
-    """
-    Generate all parts of a song based on key, tempo, time signatures and measures.
-    """
-    """ 
-    harm_filename, bass_filename, melo_filename, beat_filename = {}, {}, {}, {}
-
-    for part, measures in song_measures.items():
-        print(f"Generating part: {part} ({measures} measures)")
-        name_part = f"{name}-{part}"
-        time_signature = song_signatures[part]
-
-        chord_progression, harm_filename[part] = generate_chord_progression(
-            key, tempo, time_signature, measures, name_part, part, chord_pat_file
-        )
-        melody, melo_filename[part] = generate_melody(
-            key, tempo, time_signature, measures, name_part, part, chord_progression
-        )
-        bass_filename[part] = generate_bassline(
-            key, tempo, time_signature, measures, name_part, part, chord_progression, melody
-        )
-        beat_filename[part] = generate_beat(
-            tempo, time_signature, measures, name_part, part
-        )
-
-    return harm_filename, bass_filename, melo_filename, beat_filename
-    """
 
 def save_beat_annotations(name, beat_annotations):
     # Extract the directory name from the song name
@@ -843,7 +855,6 @@ def pedalboard_info_json(board):
     
 # Mix song parts and save the result to WAV files
 def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, name):
-    # TODO: only render and mix the parts that are used in the song arrangement
     song_unique_parts, song_arrangement = generate_song_arrangement()
     print("Song arrangement: "+ str(song_arrangement) + "\n")
     number_of_parts = len(song_arrangement)
@@ -857,8 +868,6 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     part_counter = 0
     soundfonts = {}
     pedalboards = {}
-    #TODO: configure soundfont directory 
-    print(str(os.path.join('sf','melody')))
     beat_soundfont = get_random_sound_font(str(os.path.join('sf','beat')))
     melody_soundfont = get_random_sound_font(str(os.path.join('sf','melody')))
     harmony_soundfont = get_random_sound_font(str(os.path.join('sf','harmony')))
@@ -867,10 +876,6 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     soundfonts['melody'] = melody_soundfont
     soundfonts['harmony'] = harmony_soundfont
     soundfonts['bassline'] = bassline_soundfont    
-    # print("Beat soundfont: " + beat_soundfont)
-    # print("Melody soundfont: " + melody_soundfont)
-    # print("Harmony soundfont: " + harmony_soundfont)
-    # print("Bassline soundfont: " + bassline_soundfont)
     beat_board = generate_pedalboard('beat_fx.json')
     melody_board = generate_pedalboard('melody_fx.json')
     harmony_board = generate_pedalboard('harmony_fx.json')
@@ -879,20 +884,13 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     pedalboards['melody'] = pedalboard_info_json(melody_board)
     pedalboards['harmony'] = pedalboard_info_json(harmony_board)
     pedalboards['bassline'] = pedalboard_info_json(bassline_board)
-    # print("Beat pedalboard: " + str(beat_board))
-    # print("Melody pedalboard: " + str(melody_board))
-    # print("Harmony pedalboard: " + str(harmony_board))
-    # print("Bassline pedalboard: " + str(bassline_board))
-    # TODO: gather all file references in a single config file
     inst_proba = read_instrument_probabilities('inst_probabilities.json')
-    levels = {}
     levels = get_levels('levels.json')
     print("Levels: " + str(levels))
     beat_part_mix = {}
     melody_part_mix = {}
     harmony_part_mix = {}
     bassline_part_mix = {}
-    # Define which layers will be used for each part
     for part in song_unique_parts:
         beat_proba = float(inst_proba[part]['beat'])
         melody_proba = float(inst_proba[part]['melody'])
@@ -910,7 +908,6 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         song_transitions.append(this_transition)
         part_counter += 1
         print("Mixing part: " + part + (' (' + str(part_counter) + ' of ' + str(number_of_parts) + ')'))        
-        # Render each MIDI file to an audio file using the chosen soundfont
         beat_wav = 'beat' + "-" + str(part_counter) + "-" + part + ".wav"
         beat_wav = os.path.join(name, beat_wav)
         FluidSynth(beat_soundfont).midi_to_audio(beat_filename[part], beat_wav)
@@ -923,13 +920,10 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         bass_wav = 'bassline' + "-" + str(part_counter) + "-" + part + ".wav"
         bass_wav = os.path.join(name, bass_wav)
         FluidSynth(bassline_soundfont).midi_to_audio(bass_filename[part], bass_wav)
-        # Load the rendered audio files, applying the effects defined in the JSON files
-        # TODO: optimize it so that the fx are only applied to the used layers
         beat = AudioSegment.from_wav(apply_fx_to_layer(beat_wav, beat_board))
         melody = AudioSegment.from_wav(apply_fx_to_layer(melo_wav, melody_board))
         harmony = AudioSegment.from_wav(apply_fx_to_layer(harm_wav, harmony_board))
         bassline = AudioSegment.from_wav(apply_fx_to_layer(bass_wav, bassline_board))
-        # Volume and panning for each layer
         beat.volume = float(levels[part]['beat']['volume'])
         melody.volume = float(levels[part]['melody']['volume'])
         harmony.volume = float(levels[part]['harmony']['volume'])
@@ -938,12 +932,7 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         melody.pan(float(levels[part]['melody']['panning']))
         harmony.pan(float(levels[part]['harmony']['panning']))
         bassline.pan(float(levels[part]['bassline']['panning']))      
-        # Create an empty AudioSegment to use as the initial mix
         mix = AudioSegment.silent(duration=beat.duration_seconds*1000)
-        # Overlay each track onto the mix based on its probability value        
-        # TODO: if layer is chosen, apply effects (considering probability) and mix
-        # TODO: create a data structure to store which layers are used in each part
-        # Mix the audio files together
         if beat_part_mix[part]:
             mix = mix.overlay(beat)
             if 'beat' not in part_layers[part]:
@@ -964,7 +953,6 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
             if 'bassline' not in part_layers[part]:
                 part_layers[part].append('bassline')
             print("Bassline added to mix: "+part)
-        # Save the mixed audio to the output file
         part_mix_file = name + '-' + str(part_counter) + '.wav'
         part_mix_file = os.path.join(name, part_mix_file) 
         mix.export(part_mix_file, format='wav')
@@ -973,16 +961,13 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     
     this_transition = ['end', song_time]
     song_transitions.append(this_transition)
-    # Iterate through song_parts and concatenate them into a single file
     song = AudioSegment.from_wav(song_parts[0])
     for part_wav in song_parts[1:]:
         song += AudioSegment.from_wav(part_wav)
-    # Save the song as a wav file
     song_file_wav = name + '.wav'
     song_file_wav = os.path.join(name, song_file_wav)
     song.export(song_file_wav, format='wav')
     print("Song saved as: " + song_file_wav)
-    # Clean the wav parts
     for part_wav in song_parts:
         os.remove(part_wav)
         
@@ -1020,6 +1005,8 @@ def create_song(key, tempo, song_signatures, measures, name, chord_pat_file):
     song_info['pedalboards'] = pedalboards
     song_info['part_layers'] = part_layers
     # Novo sistema de musicality score
+
+    
     score, component_scores = musicality_score.get_musicality_score(wav_name)
     song_info['musicality'] = {
         'score': float(score),
@@ -1199,3 +1186,4 @@ def generate_song(id):
 
 for i in range(1):
     generate_song(i)
+
