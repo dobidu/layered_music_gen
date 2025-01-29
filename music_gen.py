@@ -45,23 +45,23 @@ def verify_beat_pattern(pattern: List[int], time_signature: str) -> bool:
     """
     numerator, denominator = map(int, time_signature.split('/'))
     
-    # Verifica se o comprimento do padrão corresponde à assinatura
+    # Checks if the pattern length matches the signature
     if denominator == 8 and numerator % 3 == 0:
-        return len(pattern) == numerator  # 6 beats para 6/8, etc.
+        return len(pattern) == numerator  # 6 beats - 6/8, etc.
     else:
-        return len(pattern) == numerator  # 4 beats para 4/4, etc.
+        return len(pattern) == numerator  # 4 beats - 4/4, etc.
 
 def calculate_measures_for_time_signature(base_length: int, time_signature: str) -> int:
-    # TODO: acoplar sistema melhorado de controle de compassos
+    # TODO: couple improved compass control system
     numerator, denominator = map(int, time_signature.split('/'))
     
     if denominator == 8 and numerator % 3 == 0:
-        return base_length * 2  # Dobra para compassos compostos
+        return base_length * 2  # Doubling for compound measures
     elif numerator == 2:
-        return base_length * 2  # Dobra para 2/4
+        return base_length * 2  # Doubling for 2/4
     elif numerator == 3:
-        return int(base_length * 4/3)  # Ajusta para 3/4        
-    return base_length  # 4/4 mantém original
+        return int(base_length * 4/3)  # Adjusts for 3/4        
+    return base_length  # 4/4 keeps original
 
 def validate_measures(measures: Dict[str, int], signatures: Dict[str, str]) -> bool:
     """
@@ -150,21 +150,21 @@ def get_melody_durations(time_signature: str) -> list:
     
     if denominator == 8 and numerator % 3 == 0:  # Compassos compostos (6/8, 12/8)
         return [
-            0.5,  # Colcheia (unidade básica)
-            1.5,  # Colcheia pontuada (grupo de 3)
-            3.0   # Semínima pontuada (grupo completo)
+            0.5,  # Eighth note (basic unit)
+            1.5,  # Dotted eighth note (group of 3)
+            3.0   # Dotted quarter note (full group)
         ]
     elif numerator == 3:  # 3/4
         return [
-            0.5,  # Colcheia
-            1.0,  # Semínima
-            1.5   # Semínima pontuada
+            0.5,  # Eighth note
+            1.0,  # Quarter note
+            1.5   # Dotted quarter note
         ]
     else:  # 2/4, 4/4
         return [
-            0.5,  # Colcheia
-            1.0,  # Semínima
-            2.0   # Mínima
+            0.5,  # Eighth note
+            1.0,  # Quarter note
+            2.0   # Half note
         ]
 
 def generate_chord_progression(key, tempo, time_signature, measures, name, part, pattern_file):    
@@ -185,7 +185,7 @@ def generate_chord_progression(key, tempo, time_signature, measures, name, part,
     beats_per_measure = numerator
     if time_signature.endswith('8'):  # Composed meters
         if numerator % 3 == 0:  # 6/8, 12/8
-            beats_per_measure = numerator // 3  # Agrupa em unidades de 3 colcheias 
+            beats_per_measure = numerator // 3  # Groups into units of 3 eighth notes
         
     # Reads and validates chord patterns
     chord_patterns = {}
@@ -264,7 +264,6 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
     mf.addTimeSignature(track, time, numerator, midi_denominator, 24, 8)
     
     # Get base note duration
-    # base_duration = get_note_duration(time_signature) 
     base_duration = validator.get_suggested_duration(time_signature, 'melody')
     beats_per_measure = numerator * base_duration
     total_beats = measures * beats_per_measure
