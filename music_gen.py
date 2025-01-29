@@ -15,7 +15,7 @@ import uuid
 import musicality_score
 from enhanced_duration_validator import DurationValidator, NoteValue
 
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Optional
 import math
 
 
@@ -477,16 +477,50 @@ def beat_duration(signature: str, tempo: int) -> float:
     beat_length = 60 / tempo  # Duration of a quarter note
     return beat_length * (4 / denominator)
 
-def generate_beat(part: str, tempo: int, time_signature: str, measures: int, name: str) -> Tuple[str, List[float]]:
+def calculate_swing_offset(base_duration: float, swing_amount: float) -> float:
     """
-    Generate a drum beat based on a time signature and generate beat annotations.
+    Calculates the offset time for a note with swing.
+    
+    Args:
+        base_duration: Base note duration in beats
+        swing_amount: Swing amount (0.0 to 1.0, where 0.5 is straight timing)
+    
+    Returns:
+        float: Time offset in beats
+    """
+    # Swing amount of 0.5 means straight timing (in swing)
+    # Values ​​> 0.5 delay the off-beat
+    # Values ​​< 0.5 advance the off-beat
+    return base_duration * (swing_amount - 0.5)
+
+
+def generate_beat(
+    part: str, 
+    tempo: int,
+    time_signature: str,
+    measures: int,
+    name: str,
+    swing_amount: float = 0.5
+) -> Tuple[str, List[float]]:
+    """
+    Generates a drum pattern with configurable swing.
+    
+    Args:
+        part: Part of the song (intro, verse, etc.)
+        tempo: BPM
+        time_signature: Time signature (ex: "4/4")
+        measures: Number of bars
+        name: Base name for generated files
+        swing_amount: Swing amount (0.0 to 1.0, default 0.5 = no swing)
+        
+    Returns:
+        Tuple[str, List[float]]: (MIDI file name, list of time notes)
     """
     validator = DurationValidator()
     beat_pattern_files = {
         "2/4": "beat_roll_patterns_24.txt",
         "4/4": "beat_roll_patterns_44.txt",
         "3/4": "beat_roll_patterns_34.txt",
-        "5/4": "beat_roll_patterns_54.txt",
         "6/8": "beat_roll_patterns_68.txt",
         "7/8": "beat_roll_patterns_78.txt",
         "12/8": "beat_roll_patterns_128.txt"
@@ -499,17 +533,17 @@ def generate_beat(part: str, tempo: int, time_signature: str, measures: int, nam
     mf.addTrackName(track, time, "Beat")
     mf.addTempo(track, time, tempo)
 
-    # Adds correct time signature
     numerator, midi_denominator = get_midi_time_signature_values(time_signature)
     mf.addTimeSignature(track, time, numerator, midi_denominator, 24, 8)
 
     base_duration = validator.get_suggested_duration(time_signature, 'beat')
 
+    # MIDI values ​​for percussion instruments
     kick = 36
     snare = 38
     hihat = 42
 
-    # Reads beat patterns from file
+    # Reads patterns from file
     filename = beat_pattern_files.get(time_signature)
     if not filename:
         raise ValueError(f"Time signature {time_signature} not supported.")
@@ -525,30 +559,39 @@ def generate_beat(part: str, tempo: int, time_signature: str, measures: int, nam
                 if verify_beat_pattern(pattern, time_signature):
                     beat_patterns.setdefault(song_part, []).append(pattern)
 
-    # Creates a basic pattern if not found
+    # default pattern
     if part not in beat_patterns or not beat_patterns[part]:
         base_pattern = [kick, hihat] if numerator == 2 else [kick, hihat, snare]
         beat_patterns[part] = [base_pattern]
 
-    # Generates pattern for the part
+    # Generates the pattern for the part
     beat_pattern = random.choice(beat_patterns[part])
     beat = beat_pattern * (measures - 1)
 
-    # Adds a roll at the end
+    # Adds roll to the end
     roll_part = part + "_roll"
     roll_pattern = random.choice(beat_patterns.get(roll_part, [beat_pattern]))
     beat.extend(roll_pattern)
 
-    # Adds notes to MIDI file and generate annotations
+    # Add notes to MIDI file with swing
     annotations = []
     current_time = 0.0
-    for drum_hit in beat:
+    
+    for i, drum_hit in enumerate(beat):
         if drum_hit != 0:
-            mf.addNote(track, 9, drum_hit, current_time, base_duration, 100)
-            annotations.append(f"{current_time:.3f}\t{len(annotations) + 1}")
+            # Applies swing only to weak notes (odd indices)
+            if i % 2 == 1:  # off-beat
+                swing_offset = calculate_swing_offset(base_duration, swing_amount)
+                actual_time = current_time + swing_offset
+            else:
+                actual_time = current_time
+                
+            mf.addNote(track, 9, drum_hit, actual_time, base_duration, 100)
+            annotations.append(f"{actual_time:.3f}\t{len(annotations) + 1}")
+            
         current_time += base_duration
 
-    # Saves MIDI file
+    # Saves MIDI
     directory = name.split('-')[0]
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -558,142 +601,6 @@ def generate_beat(part: str, tempo: int, time_signature: str, measures: int, nam
         mf.writeFile(outf)
 
     return midi_filename, annotations
-
-#def generate_beat(tempo, time_signature, measures, name, part):
-    """
-    Generate a drum beat based on a time signature.
-    """
-"""
-    validator = DurationValidator()
-    beat_pattern_files = {
-        "2/4": "beat_roll_patterns_24.txt",
-        "4/4": "beat_roll_patterns_44.txt",
-        "3/4": "beat_roll_patterns_34.txt",
-        "6/8": "beat_roll_patterns_68.txt",
-        "7/8": "beat_roll_patterns_78.txt",
-        "12/8": "beat_roll_patterns_128.txt"
-    }
-
-    mf = MIDIFile(1)
-    track = 0
-    time = 0
-
-    mf.addTrackName(track, time, "Beat")
-    mf.addTempo(track, time, tempo)
-
-    # Adds correct time signature
-    numerator, midi_denominator = get_midi_time_signature_values(time_signature)
-    mf.addTimeSignature(track, time, numerator, midi_denominator, 24, 8)
-
-    base_duration = validator.get_suggested_duration(time_signature, 'beat')
-
-    kick = 36
-    snare = 38
-    hihat = 42
-
-
-    # Reads beat patterns from file
-    filename = beat_pattern_files.get(time_signature)
-    if not filename:
-        raise ValueError(f"Time signature {time_signature} not supported.")
-
-    beat_patterns = {}
-    with open(filename, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                parts = line.split(':')
-                song_part = parts[0].strip()
-                pattern = [int(x) for x in parts[1].split(',')]
-                if verify_beat_pattern(pattern, time_signature):
-                    beat_patterns.setdefault(song_part, []).append(pattern)
-
-    # Creates a basic pattern if not found
-    if part not in beat_patterns or not beat_patterns[part]:
-        base_pattern = [kick, hihat] if numerator == 2 else [kick, hihat, snare]
-        beat_patterns[part] = [base_pattern]
-
-    # Generates pattern for the part
-    beat_pattern = random.choice(beat_patterns[part])
-    beat = beat_pattern * (measures - 1)
-
-    # Adds a roll at the end
-    roll_part = part + "_roll"
-    roll_pattern = random.choice(beat_patterns.get(roll_part, [beat_pattern]))
-    beat.extend(roll_pattern)
-
-    # Adds notes to MIDI file
-    current_time = 0
-    for drum_hit  in beat:
-        if drum_hit != 0:
-            mf.addNote(track, 9, drum_hit , current_time, base_duration, 100)
-        current_time += base_duration
-
-    # Saves MIDI file
-    directory = name.split('-')[0]
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    midi_filename = os.path.join(directory, f"{name}-beat.mid")
-
-    with open(midi_filename, 'wb') as outf:
-        mf.writeFile(outf)
-
-    return midi_filename
-"""
-
-def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_pat_file):
-    """
-    Generate all parts of a song based on key, tempo, time signatures and measures.
-    """
-    harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations = {}, {}, {}, {}, {}
-
-    for part, measures in song_measures.items():
-        print(f"Generating part: {part} ({measures} measures)")
-        name_part = f"{name}-{part}"
-        time_signature = song_signatures[part]
-
-        chord_progression, harm_filename[part] = generate_chord_progression(
-            key, tempo, time_signature, measures, name_part, part, chord_pat_file
-        )
-        melody, melo_filename[part] = generate_melody(
-            key, tempo, time_signature, measures, name_part, part, chord_progression
-        )
-        bass_filename[part] = generate_bassline(
-            key, tempo, time_signature, measures, name_part, part, chord_progression, melody
-        )
-        beat_filename[part], beat_annotations[part] = generate_beat(
-            part, tempo, time_signature, measures, name_part
-        )
-
-    return harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations
-
-#def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_pat_file):
-    """
-    Generate all parts of a song based on key, tempo, time signatures and measures.
-    """
-    """ 
-    harm_filename, bass_filename, melo_filename, beat_filename = {}, {}, {}, {}
-
-    for part, measures in song_measures.items():
-        print(f"Generating part: {part} ({measures} measures)")
-        name_part = f"{name}-{part}"
-        time_signature = song_signatures[part]
-
-        chord_progression, harm_filename[part] = generate_chord_progression(
-            key, tempo, time_signature, measures, name_part, part, chord_pat_file
-        )
-        melody, melo_filename[part] = generate_melody(
-            key, tempo, time_signature, measures, name_part, part, chord_progression
-        )
-        bass_filename[part] = generate_bassline(
-            key, tempo, time_signature, measures, name_part, part, chord_progression, melody
-        )
-        beat_filename[part] = generate_beat(
-            tempo, time_signature, measures, name_part, part
-        )
-
-    return harm_filename, bass_filename, melo_filename, beat_filename
-    """
 
 def save_beat_annotations(name, beat_annotations):
     # Extract the directory name from the song name
@@ -758,6 +665,33 @@ def get_levels(file_path):
     with open(file_path) as f:
         levels = json.load(f)
     return levels  
+
+def generate_random_swing() -> float:
+    """
+    Generates a random swing value with a weighted distribution.
+    Favors more musically appropriate values.
+    
+    Returns:
+        float: Swing value between 0.5 and 0.75
+    """
+    # Distribution that favors moderate swings
+    # 0.5 = no swing
+    # 0.66 = traditional jazz
+    # 0.75 = extreme swing 
+    swing_weights = [
+        (0.5, 0.3),   # 30% no swing
+        (0.66, 0.5),  # 50% traditional jazz
+        (0.75, 0.2)   # 20% extreme swing
+    ]
+    
+    base_swing = random.choices(
+        [s[0] for s in swing_weights],
+        weights=[s[1] for s in swing_weights]
+    )[0]
+    
+    # random variations
+    variation = random.uniform(-0.02, 0.02)
+    return min(0.75, max(0.5, base_swing + variation))
 
 def create_effect(effect_class, parameters):
     # Unpack the parameters
@@ -967,94 +901,6 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         
     return song_file_wav, song_arrangement, song_transitions, soundfonts, pedalboards, part_layers
 
-# Create song file and metadata
-def create_song(key, tempo, song_signatures, measures, name, chord_pat_file):
-    song_info = {}
-    song_info['key'] = key
-    song_info['tempo'] = tempo
-    # song_info['time_signature'] = time_signature
-    song_info['measures'] = measures
-    song_info['time_signatures'] = song_signatures
-    song_info['name'] = name
-
-    ha = {}
-    ba = {}
-    me = {}
-    be = {}
-
-    song_name = name
-
-    start_time = time.time()
-    
-    ha, ba, me, be, an = generate_song_parts(key, tempo, song_signatures, measures, song_name, chord_pat_file)
-    wav_name, arrangement, transitions, soundfonts, pedalboards, part_layers = mix_and_save(ha, ba, me, be, song_name)    
-    end_time = time.time()
-
-    # save_beat_annotations(song_name, an)
-    
-    song_info['file_name'] = wav_name
-    song_info['arrangement'] = arrangement
-    song_info['transitions'] = transitions
-    song_info['soundfonts'] = soundfonts
-    song_info['pedalboards'] = pedalboards
-    song_info['part_layers'] = part_layers
-    # Novo sistema de musicality score
-    score, component_scores = musicality_score.get_musicality_score(wav_name)
-    song_info['musicality'] = {
-        'score': float(score),
-        'components': {
-            k: float(v) for k, v in component_scores.items()
-        }
-    }    
-    elapsed_time = end_time - start_time
-    print(f'Elapsed time: {elapsed_time:.2f} seconds')
-    print(f'Musicality Analysis:')
-    print(f'Score: {score:.2f}')
-    print('Component Scores:')
-    for component, value in component_scores.items():
-        print(f'{component:>10}: {value:.2f}')    
-    json_file = os.path.join(name, name + '.json')
-    
-    print('Annotations: ' + json_file)
-    
-    with open(json_file, 'w') as outfile:
-        json.dump(song_info, outfile, indent=4)
-
-    # TODO: clean temp files in a better way (ATS)
-    # TODO generate stems for each layer / the whole song
-    midi_del = "*.mid"
-    midi_path = os.path.join(name, midi_del)
-    midi_files = glob.glob(midi_path)
-    # for midi_file in midi_files:
-        # os.remove(midi_file)
-    
-    wav_del = "beat-*.wav" 
-    wav_path = os.path.join(name, wav_del)
-    wav_files = glob.glob(wav_path)
-    # for wav_file in wav_files:
-        # os.remove(wav_file)
-
-    wav_del = "bassline-*.wav" 
-    wav_path = os.path.join(name, wav_del)
-    wav_files = glob.glob(wav_path)
-    # for wav_file in wav_files:
-        # os.remove(wav_file)
-
-    wav_del = "harmony-*.wav" 
-    wav_path = os.path.join(name, wav_del)
-    wav_files = glob.glob(wav_path)
-    # for wav_file in wav_files:
-        # os.remove(wav_file)
-
-    wav_del = "melody-*.wav" 
-    wav_path = os.path.join(name, wav_del)
-    wav_files = glob.glob(wav_path)
-    # for wav_file in wav_files:
-        # os.remove(wav_file)
-
-    
-    return wav_name, json_file
-
 def generate_random_key():
     # https://www.digitaltrends.com/music/whats-the-most-popular-music-key-spotify/
     # https://web.archive.org/web/20190426230344/https://insights.spotify.com/us/2015/05/06/most-popular-keys-on-spotify/
@@ -1126,7 +972,7 @@ def generate_song_measures(time_signature: str, time_signature_variation: float)
     """
     Generates a set of measures for each part of a song, based on a given time signature and variation.
     """
-    # Comprimentos base (para 4/4)
+
     base_lengths = {
         'intro': random.choice([8, 16]),
         'verse': random.choice([16, 32]),
@@ -1135,7 +981,7 @@ def generate_song_measures(time_signature: str, time_signature_variation: float)
         'outro': random.choice([8, 16])
     }
     
-    # Define assinaturas de tempo para cada parte
+    # Sets time signatures for each part
     if random.random() < time_signature_variation:
         signatures = {
             'intro': random.choice([time_signature, time_signature_alternative(time_signature)]),
@@ -1147,7 +993,7 @@ def generate_song_measures(time_signature: str, time_signature_variation: float)
     else:
         signatures = {part: time_signature for part in base_lengths.keys()}
     
-    # Ajusta número de compassos baseado na assinatura de tempo
+    # Adjusts number of bars based on time signature
     measures = {
         part: calculate_measures_for_time_signature(length, signatures[part])
         for part, length in base_lengths.items()
@@ -1156,23 +1002,159 @@ def generate_song_measures(time_signature: str, time_signature_variation: float)
     return measures, signatures
     
 
-def generate_song(id):
-    print("Generating song #" + str(id))
+def create_song(
+    key: str,
+    tempo: int,
+    song_signatures: Dict[str, str],
+    measures: Dict[str, int],
+    name: str,
+    chord_pat_file: str,
+    swing_amount: float
+) -> Dict:
+
+    song_info = {}
+    song_info['key'] = key
+    song_info['tempo'] = tempo
+    song_info['measures'] = measures
+    song_info['time_signatures'] = song_signatures
+    song_info['name'] = name
+    song_info['swing_amount'] = swing_amount  
+
+    ha = {}
+    ba = {}
+    me = {}
+    be = {}
+
+    song_name = name
+    start_time = time.time()
+    
+    print(f"Generating song with swing amount: {swing_amount}")
+    
+    # Generates the musical components
+    ha, ba, me, be, an = generate_song_parts(
+        key=key,
+        tempo=tempo,
+        song_signatures=song_signatures,
+        song_measures=measures,
+        name=song_name,
+        chord_pat_file=chord_pat_file,
+        swing_amount=swing_amount
+    )
+    
+    # Mix components
+    wav_name, arrangement, transitions, soundfonts, pedalboards, part_layers = mix_and_save(
+        ha, ba, me, be, song_name
+    )
+    
+    end_time = time.time()
+
+    
+    song_info['file_name'] = wav_name
+    song_info['arrangement'] = arrangement
+    song_info['transitions'] = transitions
+    song_info['soundfonts'] = soundfonts
+    song_info['pedalboards'] = pedalboards
+    song_info['part_layers'] = part_layers
+    
+    # Calculates musicality score
+    score, component_scores = musicality_score.get_musicality_score(wav_name)
+    song_info['musicality'] = {
+        'score': float(score),
+        'components': {
+            k: float(v) for k, v in component_scores.items()
+        }
+    }
+    
+    elapsed_time = end_time - start_time
+    print(f'Elapsed time: {elapsed_time:.2f} seconds')
+    print(f'Musicality Analysis:')
+    print(f'Score: {score:.2f}')
+    print('Component Scores:')
+    for component, value in component_scores.items():
+        print(f'{component:>10}: {value:.2f}')
+    
+    # Saves metadata
+    json_file = os.path.join(name, name + '.json')
+    with open(json_file, 'w') as outfile:
+        json.dump(song_info, outfile, indent=4)
+    
+    return song_info
+
+def generate_song_parts(
+    key: str,
+    tempo: int,
+    song_signatures: Dict[str, str],
+    song_measures: Dict[str, int],
+    name: str,
+    chord_pat_file: str,
+    swing_amount: float
+) -> Tuple[Dict, Dict, Dict, Dict, Dict]:
+
+    harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations = {}, {}, {}, {}, {}
+
+    for part, measures in song_measures.items():
+        print(f"Generating part: {part} ({measures} measures)")
+        name_part = f"{name}-{part}"
+        time_signature = song_signatures[part]
+
+        chord_progression, harm_filename[part] = generate_chord_progression(
+            key, tempo, time_signature, measures, name_part, part, chord_pat_file
+        )
+        
+        melody, melo_filename[part] = generate_melody(
+            key, tempo, time_signature, measures, name_part, part, chord_progression
+        )
+        
+        bass_filename[part] = generate_bassline(
+            key, tempo, time_signature, measures, name_part, part, chord_progression, melody
+        )
+        
+        beat_filename[part], beat_annotations[part] = generate_beat(
+            part, tempo, time_signature, measures, name_part, swing_amount
+        )
+
+    return harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations
+
+def generate_song(id: int):
+    """
+    Generates a complete song with all its components.
+    
+    Args:
+        id: Music id
+    """
+    print(f"Generating song #{str(id)}")
+    
+    # Basic musical parameters
     key = generate_random_key()
     tempo = generate_random_tempo()
     time_signature = generate_random_time_signature()
-    time_signature_variation = 1.0  # 100% chance of varying the time signature
-    # song_measures, song_signatures = generate_song_measures(time_signature, time_signature_variation)
+    time_signature_variation = 1.0  # 100% chance of time signature variation
+    swing_amount = generate_random_swing()
+    swing_amount = min(0.75, max(0.5, float(swing_amount)))
+    
+    # Generates valid measurements and time signatures
     while True:
         measures, signatures = generate_song_measures(time_signature, time_signature_variation)
         if validate_measures(measures, signatures):
             break
     
+    # Generates unique name for the song
     now = datetime.now()
     song_name = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4()}"
-    # Truncate song name to 20 characters
-    song_name = song_name[:20]
-    create_song(key, tempo, signatures, measures, song_name, 'chord_patterns.txt')
+    song_name = song_name[:20]  # 20 chars
+    
+    # Generates the music components
+    song_info = create_song(
+        key=key,
+        tempo=tempo,
+        song_signatures=signatures,
+        measures=measures,
+        name=song_name,
+        chord_pat_file='chord_patterns.txt',
+        swing_amount=swing_amount
+    )
+    
+    return song_info
 
 # Example usage
 
