@@ -266,7 +266,7 @@ def generate_chord_progression(key, tempo, time_signature, measures, name, part,
     with open(filename, 'wb') as outf:
         mf.writeFile(outf)
     
-    print("\t\t\tChord progression: " + str(chord_progression))
+    # print("\t\t\tChord progression: " + str(chord_progression))
     
     return chord_pattern, filename
 
@@ -283,12 +283,10 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
     mf.addTempo(track, time, tempo)
 
     # Add time signature as a meta message
-    # Add correct time signature
     numerator, midi_denominator = get_midi_time_signature_values(time_signature)
     mf.addTimeSignature(track, time, numerator, midi_denominator, 24, 8)
     
     # Get base note duration
-    # base_duration = get_note_duration(time_signature) 
     base_duration = validator.get_suggested_duration(time_signature, 'melody')
     beats_per_measure = numerator * base_duration
     total_beats = measures * beats_per_measure
@@ -314,9 +312,6 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
     else:
         notes_to_use = [chord.pitches[0] for chord in chords]
 
-    # Debug statement to check the notes_to_use
-    print(f"Notes to use for part {part}: {notes_to_use}")
-
     if not notes_to_use:
         raise ValueError("The list of notes to use is empty")
 
@@ -327,33 +322,23 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
         for next_note in notes_to_use:
             transition_matrix[note.midi][next_note.midi] = 1 / len(notes_to_use)
 
-    # Debug statement to check the transition matrix
-    print(f"Transition matrix: {transition_matrix}")
-
-    # Generate a random bassline using a Markov chain
-    bassline = []
-
-    # Generate melody with correct note durations
+    # Generate a random melody using a Markov chain
     melody = []
     note_durations = []
-    total_beats = measures * validator._analyze_time_signature(time_signature).beats_per_measure
     remaining_beats = total_beats
 
+    # Initialize with a random note from the available ones
     current_note = random.choice([note.midi for note in notes_to_use])
 
-
-
-    # Choose the initial note randomly
     while remaining_beats > 0:
         current_note = random.choices(
             population=list(transition_matrix[current_note].keys()),
             weights=list(transition_matrix[current_note].values())
         )[0]
 
-        # Chooses proper note duration
+        # Choose proper note duration
         possible_durations = get_melody_durations(time_signature)
-        # raw_duration = random.choice(possible_durations)
-        raw_duration = random.choice(get_melody_durations(time_signature))
+        raw_duration = random.choice(possible_durations)
         duration = validator.get_valid_duration(
             raw_duration, 
             time_signature, 
@@ -367,7 +352,7 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
         note_durations.append(note_duration)
         remaining_beats -= note_duration
 
-    if not validator.validate_layer_duration(possible_durations, time_signature, 'melody'):
+    if not validator.validate_layer_duration(note_durations, time_signature, 'melody'):
         print("\n\nGenerated melody has invalid timing structure\n")
     
     # Add notes to MIDI file
@@ -375,9 +360,7 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
         note = melody[i]
         velocity = random.randint(70, 100)
         mf.addNote(track, 0, note, time, note_durations[i], velocity)
-        time += note_duration
-
-    print("\t\t\tMelody: " + str(melody))
+        time += note_durations[i]
 
     # Save MIDI file
     directory = name.split('-')[0]
@@ -472,7 +455,7 @@ def generate_bassline(key, tempo, time_signature, measures, name, part, chord_pr
                 if random.random() < 0.5:
                     bassline[i] = melody[i]
 
-    print("\t\t\tBassline: " + str(bassline))
+    # print("\t\t\tBassline: " + str(bassline))
     # Add notes to MIDI file
     current_time = 0
     for i in range(len(bassline)):
@@ -496,7 +479,7 @@ def generate_bassline(key, tempo, time_signature, measures, name, part, chord_pr
     with open(filename, 'wb') as outf:
         mf.writeFile(outf)
     
-    print("\t\t\tBassline midi file: " + filename)
+    # print("\t\t\tBassline midi file: " + filename)
         
     return filename
 
@@ -682,7 +665,7 @@ def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_
     previous_time_signature = None
 
     for part, measures in song_measures.items():
-        print(f"Generating part: {part} ({measures} measures)")
+        # print(f"Generating part: {part} ({measures} measures)")
         name_part = f"{name}-{part}"
         time_signature = song_signatures[part]
 
@@ -716,7 +699,7 @@ def generate_song_parts(key, tempo, song_signatures, song_measures, name, chord_
 
 def save_beat_annotations(name, beat_annotations):
     # Extract the directory name from the song name
-    instance_dir = os.path.dirname(name)
+    instance_dir = os.path.join('songs', os.path.dirname(name))
     output_file = os.path.join(instance_dir, f"{name}-beats.txt")
     with open(output_file, 'w') as f:
         for part, annotations in beat_annotations.items():
@@ -760,7 +743,7 @@ def generate_song_arrangement(structures_file: str = 'song_structures.json') -> 
     except (json.JSONDecodeError, FileNotFoundError, KeyError, ValueError) as e:
         # Default structure in case of error
         default_structure = ['intro', 'verse', 'chorus', 'outro']
-        print(f"Warning: Using default structure due to error: {str(e)}")
+        # print(f"Warning: Using default structure due to error: {str(e)}")
         return list(set(default_structure)), default_structure
     
 def read_instrument_probabilities(file_path):
@@ -855,19 +838,40 @@ def pedalboard_info_json(board):
     
 # Mix song parts and save the result to WAV files
 def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, name):
-    song_unique_parts, song_arrangement = generate_song_arrangement()
-    print("Song arrangement: "+ str(song_arrangement) + "\n")
-    number_of_parts = len(song_arrangement)
-    song_parts = []
-    part_layers = {}
-    part_layers['intro'] = []
-    part_layers['verse'] = []
-    part_layers['chorus'] = []
-    part_layers['bridge'] = []
-    part_layers['outro'] = []
-    part_counter = 0
-    soundfonts = {}
     pedalboards = {}
+    soundfonts = {}
+    song_unique_parts, song_arrangement = generate_song_arrangement()
+    song_parts = []
+    part_layers = {
+        'intro': [], 
+        'verse': [],
+        'chorus': [],
+        'bridge': [],
+        'outro': []
+    }
+    
+    # Define default instrument combinations for each part
+    default_combinations = {
+        'intro': ['beat', 'harmony'],
+        'verse': ['beat', 'harmony', 'bassline'],
+        'chorus': ['beat', 'melody', 'harmony', 'bassline'],
+        'bridge': ['beat', 'melody', 'bassline'],
+        'outro': ['beat', 'melody', 'harmony']
+    }
+
+    # Setup mixing flags based on default combinations instead of random probability
+    beat_part_mix = {}
+    melody_part_mix = {}
+    harmony_part_mix = {}
+    bassline_part_mix = {}
+    
+    for part in song_unique_parts:
+        beat_part_mix[part] = 'beat' in default_combinations[part]
+        melody_part_mix[part] = 'melody' in default_combinations[part]
+        harmony_part_mix[part] = 'harmony' in default_combinations[part]
+        bassline_part_mix[part] = 'bassline' in default_combinations[part]
+
+    # Rest of your existing mixing code...
     beat_soundfont = get_random_sound_font(str(os.path.join('sf','beat')))
     melody_soundfont = get_random_sound_font(str(os.path.join('sf','melody')))
     harmony_soundfont = get_random_sound_font(str(os.path.join('sf','harmony')))
@@ -886,7 +890,7 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     pedalboards['bassline'] = pedalboard_info_json(bassline_board)
     inst_proba = read_instrument_probabilities('inst_probabilities.json')
     levels = get_levels('levels.json')
-    print("Levels: " + str(levels))
+    # print("Levels: " + str(levels))
     beat_part_mix = {}
     melody_part_mix = {}
     harmony_part_mix = {}
@@ -900,14 +904,15 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         melody_part_mix[part] = (random.random() <= melody_proba)
         harmony_part_mix[part] = (random.random() <= harmony_proba)
         bassline_part_mix[part] = (random.random() <= bassline_proba)    
-    print("Mixing song parts...")
+    # print("Mixing song parts...")
     song_transitions = []
     song_time = 0
+    part_counter = 0
     for part in song_arrangement:
         this_transition = [part, song_time]
         song_transitions.append(this_transition)
         part_counter += 1
-        print("Mixing part: " + part + (' (' + str(part_counter) + ' of ' + str(number_of_parts) + ')'))        
+        # print("Mixing part: " + part + (' (' + str(part_counter) + ' of ' + str(number_of_parts) + ')'))        
         beat_wav = 'beat' + "-" + str(part_counter) + "-" + part + ".wav"
         beat_wav = os.path.join(name, beat_wav)
         FluidSynth(beat_soundfont).midi_to_audio(beat_filename[part], beat_wav)
@@ -933,26 +938,27 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         harmony.pan(float(levels[part]['harmony']['panning']))
         bassline.pan(float(levels[part]['bassline']['panning']))      
         mix = AudioSegment.silent(duration=beat.duration_seconds*1000)
+        
+        # Layer the instruments according to the combinations
         if beat_part_mix[part]:
             mix = mix.overlay(beat)
             if 'beat' not in part_layers[part]:
                 part_layers[part].append('beat')
-            print("Beat added to mix: "+part)
+        
         if melody_part_mix[part]:
             mix = mix.overlay(melody)
             if 'melody' not in part_layers[part]:
                 part_layers[part].append('melody')
-            print("Melody added to mix: "+part)
+            
         if harmony_part_mix[part]:
-            mix = mix.overlay(harmony)  
+            mix = mix.overlay(harmony)
             if 'harmony' not in part_layers[part]:
-                part_layers[part].append('harmony')         
-            print("Harmony added to mix: "+part)
+                part_layers[part].append('harmony')
+                
         if bassline_part_mix[part]:
             mix = mix.overlay(bassline)
             if 'bassline' not in part_layers[part]:
                 part_layers[part].append('bassline')
-            print("Bassline added to mix: "+part)
         part_mix_file = name + '-' + str(part_counter) + '.wav'
         part_mix_file = os.path.join(name, part_mix_file) 
         mix.export(part_mix_file, format='wav')
@@ -1015,15 +1021,15 @@ def create_song(key, tempo, song_signatures, measures, name, chord_pat_file):
         }
     }    
     elapsed_time = end_time - start_time
-    print(f'Elapsed time: {elapsed_time:.2f} seconds')
-    print(f'Musicality Analysis:')
-    print(f'Score: {score:.2f}')
-    print('Component Scores:')
+    # print(f'Elapsed time: {elapsed_time:.2f} seconds')
+    # print(f'Musicality Analysis:')
+    # print(f'Score: {score:.2f}')
+    # print('Component Scores:')
     for component, value in component_scores.items():
         print(f'{component:>10}: {value:.2f}')    
     json_file = os.path.join(name, name + '.json')
     
-    print('Annotations: ' + json_file)
+    # print('Annotations: ' + json_file)
     
     with open(json_file, 'w') as outfile:
         json.dump(song_info, outfile, indent=4)
@@ -1130,11 +1136,13 @@ def time_signature_alternative(base_time_signature):
     # Fallback to 4/4 if the time signature is not recognized
     return "4/4"
 
-def generate_song_measures(time_signature: str, time_signature_variation: float) -> Tuple[Dict[str, int], Dict[str, str]]:
+def generate_song_measures(time_signature: str, time_signature_variation: float, tempo: int) -> Tuple[Dict[str, int], Dict[str, str]]:
     """
     Generates a set of measures for each part of a song, based on a given time signature and variation.
     """
-    # Comprimentos base (para 4/4)
+    max_duration = 210  # Maximum duration in seconds (3 minutes and 30 seconds)
+    
+    # Base lengths (for 4/4)
     base_lengths = {
         'intro': random.choice([8, 16]),
         'verse': random.choice([16, 32]),
@@ -1143,7 +1151,7 @@ def generate_song_measures(time_signature: str, time_signature_variation: float)
         'outro': random.choice([8, 16])
     }
     
-    # Define assinaturas de tempo para cada parte
+    # Define time signatures for each part
     if random.random() < time_signature_variation:
         signatures = {
             'intro': random.choice([time_signature, time_signature_alternative(time_signature)]),
@@ -1155,24 +1163,45 @@ def generate_song_measures(time_signature: str, time_signature_variation: float)
     else:
         signatures = {part: time_signature for part in base_lengths.keys()}
     
-    # Ajusta número de compassos baseado na assinatura de tempo
+    # Adjust number of measures based on time signature
     measures = {
         part: calculate_measures_for_time_signature(length, signatures[part])
         for part, length in base_lengths.items()
     }
     
-    return measures, signatures
+    # Calculate total duration and adjust measures if necessary
+    total_duration = calculate_total_duration(measures, signatures, tempo)
+    while total_duration > max_duration:
+        for part in measures:
+            if measures[part] > 4:  # Reduce measures only if greater than 4
+                measures[part] -= 4
+        total_duration = calculate_total_duration(measures, signatures, tempo)
     
+    return measures, signatures
+
+def calculate_total_duration(measures: Dict[str, int], signatures: Dict[str, str], tempo: int) -> float:
+    """
+    Calculate the total duration of the song in seconds.
+    """
+    total_beats = 0
+    for part, measure_count in measures.items():
+        numerator, denominator = map(int, signatures[part].split('/'))
+        beats_per_measure = numerator
+        total_beats += beats_per_measure * measure_count
+
+    beat_duration = 60 / tempo  # Duration of a beat in seconds
+    total_duration = total_beats * beat_duration
+    return total_duration
 
 def generate_song(id):
-    print("Generating song #" + str(id))
+    # print("Generating song #" + str(id))
     key = generate_random_key()
     tempo = generate_random_tempo()
     time_signature = generate_random_time_signature()
     time_signature_variation = 1.0  # 100% chance of varying the time signature
     # song_measures, song_signatures = generate_song_measures(time_signature, time_signature_variation)
     while True:
-        measures, signatures = generate_song_measures(time_signature, time_signature_variation)
+        measures, signatures = generate_song_measures(time_signature, time_signature_variation, tempo)
         if validate_measures(measures, signatures):
             break
     
@@ -1186,4 +1215,3 @@ def generate_song(id):
 
 for i in range(1):
     generate_song(i)
-

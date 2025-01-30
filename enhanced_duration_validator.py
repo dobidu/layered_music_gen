@@ -150,6 +150,7 @@ class DurationValidator:
         # Verifica se completa compassos inteiros
         if not math.isclose(total_duration % info.beats_per_measure, 0, abs_tol=0.001):
             self.logger.warning(f"{layer_type} layer duration does not complete full measures")
+            
             return False
         
         return True
