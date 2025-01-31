@@ -1,5 +1,5 @@
 from midiutil import MIDIFile
-from music21 import *
+from music21 import roman, scale, pitch
 from pydub import AudioSegment
 from midi2audio import FluidSynth
 from datetime import datetime
@@ -14,9 +14,13 @@ from multiprocessing import Pool, cpu_count
 import uuid
 import musicality_score
 from enhanced_duration_validator import DurationValidator, NoteValue
+from gd_upload import GDriveUploader
 
 from typing import Tuple, Dict, List, Optional
 import math
+
+import pickle
+import os.path
 
 
 def verify_pattern_for_time_signature(chord_pattern: List[str], time_signature: str) -> bool:
@@ -246,114 +250,127 @@ def generate_chord_progression(key, tempo, time_signature, measures, name, part,
     
     return chord_pattern, filename
 
+def get_fallback_weights(valid_notes, part_type, scale_notes, current_note):
+    """Generate varied fallback weights based on context"""
+    strategy = random.choice(['equal', 'scale_based', 'interval_based', 'part_based'])
+    
+    if strategy == 'equal':
+        return [1.0] * len(valid_notes)
+        
+    elif strategy == 'scale_based':
+        return [2.0 if note in scale_notes else 1.0 
+                for note in valid_notes]
+        
+    elif strategy == 'interval_based':
+        return [2.0 if abs(note - current_note) <= 4 else 1.0 
+                for note in valid_notes]
+        
+    else:  # part_based
+        weights = [1.0] * len(valid_notes)
+        if part_type == 'chorus':
+            # Favor higher notes in chorus
+            weights = [1.5 if note > current_note else 1.0 
+                      for note in valid_notes]
+        elif part_type == 'verse':
+            # More varied intervals in verse
+            weights = [1.5 if abs(note - current_note) <= 7 else 1.0 
+                      for note in valid_notes]
+        return weights
+
+def get_valid_weights(transition_matrix, current_note, valid_notes, part_type, scale_notes):
+    weights = list(transition_matrix[current_note].values())
+    
+    if sum(weights) <= 0:
+        weights = get_fallback_weights(valid_notes, part_type, scale_notes, current_note)
+        
+    return weights
+
+
 def generate_melody(key, tempo, time_signature, measures, name, part, chord_progression):
-    """
-    Generate a melody based on key, tempo, a chord progression and time signature.
-    """
-    # Create a MIDI file with one track
     validator = DurationValidator()
     mf = MIDIFile(1)
     track = 0
     time = 0
+    
     mf.addTrackName(track, time, "Melody")
     mf.addTempo(track, time, tempo)
-
-    # Add time signature as a meta message
-    # Add correct time signature
     numerator, midi_denominator = get_midi_time_signature_values(time_signature)
     mf.addTimeSignature(track, time, numerator, midi_denominator, 24, 8)
+
+    # Get scale and chord notes
+    scale_obj = scale.MajorScale(key) if not key.endswith('m') else scale.MinorScale(key[:-1])
+    scale_notes = [n.midi for n in scale_obj.getPitches()]
     
-    # Get base note duration
-    base_duration = validator.get_suggested_duration(time_signature, 'melody')
-    beats_per_measure = numerator * base_duration
-    total_beats = measures * beats_per_measure
-
-    # Create scale based on key
-    if key[-1] == 'm':
-        scale_obj = scale.MinorScale(key[:-1])
-    else:
-        scale_obj = scale.MajorScale(key)
-
-    # Create chord progression based on key and chord progression input
-    chords = []
+    # Build chord notes with validation
+    chord_notes = set()
     for chord_symbol in chord_progression:
-        chord_obj = roman.RomanNumeral(chord_symbol, key)
-        chord_obj.key = key
-        chords.append(chord_obj)
-
-    # Determine which notes to use based on song part and chord progression
-    if part == 'intro':
-        notes_to_use = chords[0].pitches
-    elif part == 'outro':
-        notes_to_use = chords[-1].pitches
-    else:
-        notes_to_use = []
-        for chord in chords:
-            notes_to_use.extend(chord.pitches)
-
-    # Define the Markov chain transition matrix
-    # This matrix defines the probabilities of transitioning from one note to another
+        try:
+            chord = roman.RomanNumeral(chord_symbol, key)
+            chord_notes.update([n.midi for n in chord.pitches])
+        except:
+            continue
+    
+    # Fallback to scale if no chord notes
+    if not chord_notes:
+        chord_notes = set(scale_notes)
+    
+    # Ensure notes are in valid range
+    valid_notes = sorted(list(chord_notes))
+    if not valid_notes:
+        valid_notes = [60, 64, 67, 71]  # Fallback to C major notes
+        
+    # Build transition matrix with guaranteed weights
     transition_matrix = {}
-    for note in notes_to_use:
-        transition_matrix[note.midi] = {}
-        for next_note in notes_to_use:
-            if next_note in chord_obj.pitches:
-                transition_matrix[note.midi][next_note.midi] = 1 / len(notes_to_use)
-            else:
-                transition_matrix[note.midi][next_note.midi] = 0
+    for note in valid_notes:
+        transition_matrix[note] = {}
+        for next_note in valid_notes:
+            weight = 1.0  # Base weight
+            if abs(note - next_note) <= 4:  # Prefer small intervals
+                weight += 1.0
+            if next_note in chord_notes:  # Prefer chord tones
+                weight += 0.5
+            transition_matrix[note][next_note] = weight
 
-    # Generate a random melody using a Markov chain
-    # Generate melody with correct note durations
+    # Generate melody
     melody = []
     note_durations = []
-    total_beats = measures * validator._analyze_time_signature(time_signature).beats_per_measure
-    remaining_beats = total_beats
+    remaining_beats = measures * validator._analyze_time_signature(time_signature).beats_per_measure
+    current_note = random.choice(valid_notes)
 
-    current_note = random.choice([note.midi for note in notes_to_use])
-
-    # Choose the initial note randomly
     while remaining_beats > 0:
+        # Get valid weights
+        weights = get_valid_weights(transition_matrix, current_note, valid_notes, part, scale_notes)
+            
         current_note = random.choices(
             population=list(transition_matrix[current_note].keys()),
-            weights=list(transition_matrix[current_note].values())
+            weights=weights
         )[0]
 
-        # Chooses proper note duration
-        possible_durations = get_melody_durations(time_signature)
-        # raw_duration = random.choice(possible_durations)
-        raw_duration = random.choice(get_melody_durations(time_signature))
         duration = validator.get_valid_duration(
-            raw_duration, 
-            time_signature, 
+            random.choice(get_melody_durations(time_signature)),
+            time_signature,
             remaining_beats,
             'melody'
         )
         
-        note_duration = duration
-
         melody.append(current_note)
-        note_durations.append(note_duration)
-        remaining_beats -= note_duration
+        note_durations.append(duration)
+        remaining_beats -= duration
 
-    if not validator.validate_layer_duration(possible_durations, time_signature, 'melody'):
-        print("\n\nGenerated melody has invalid timing structure\n")
-    
-    # Add notes to MIDI file
-    for i in range(len(melody)):
-        note = melody[i]
+    # Write MIDI
+    current_time = 0
+    for i, note in enumerate(melody):
         velocity = random.randint(70, 100)
-        mf.addNote(track, 0, note, time, note_durations[i], velocity)
-        time += note_duration
+        mf.addNote(track, 0, note, current_time, note_durations[i], velocity)
+        current_time += note_durations[i]
 
-    print("\t\t\tMelody: " + str(melody))
-
-    # Save MIDI file
     directory = name.split('-')[0]
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    filename = os.path.join(directory, name + "-melody.mid")
+    os.makedirs(directory, exist_ok=True)
+    filename = os.path.join(directory, f"{name}-melody.mid")
+    
     with open(filename, 'wb') as outf:
         mf.writeFile(outf)
+        
     return melody, filename
 
 def generate_bassline(key, tempo, time_signature, measures, name, part, chord_progression, melody):
@@ -1077,6 +1094,7 @@ def create_song(
     with open(json_file, 'w') as outfile:
         json.dump(song_info, outfile, indent=4)
     
+    
     return song_info
 
 def generate_song_parts(
@@ -1155,7 +1173,62 @@ def generate_song(id: int):
     
     return song_info
 
+def get_google_drive_service():
+    """Set up and return Google Drive service."""
+    SCOPES = ['https://www.googleapis.com/auth/drive.file']
+    creds = None
+
+    # Load existing credentials if available
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+
+    # If credentials are invalid or don't exist, get new ones
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        
+        # Save credentials
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+
+    return build('drive', 'v3', credentials=creds)
+
+def upload_to_drive(service, file_path, folder_id=None):
+    """Upload a file to Google Drive."""
+    file_metadata = {
+        'name': os.path.basename(file_path),
+        'parents': [folder_id] if folder_id else []
+    }
+    
+    media = MediaFileUpload(
+        file_path,
+        resumable=True
+    )
+    
+    file = service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields='id'
+    ).execute()
+    
+    return file.get('id')
+
+def cleanup_local_files(directory):
+    """Remove local files after upload."""
+    if os.path.exists(directory):
+        for root, dirs, files in os.walk(directory, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        os.rmdir(directory)
+
 # Example usage
 
-for i in range(1):
+for i in range(997):
     generate_song(i)
