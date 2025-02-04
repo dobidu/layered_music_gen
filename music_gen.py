@@ -539,7 +539,8 @@ def generate_beat(
         "3/4": "beat_roll_patterns_34.txt",
         "6/8": "beat_roll_patterns_68.txt",
         "7/8": "beat_roll_patterns_78.txt",
-        "12/8": "beat_roll_patterns_128.txt"
+        "12/8": "beat_roll_patterns_128.txt",
+        "5/4": "beat_roll_patterns_54.txt"
     }
 
     mf = MIDIFile(1)
@@ -724,18 +725,21 @@ def generate_pedalboard(effect_params_file):
     # Load effect parameters from the JSON file
     with open(effect_params_file, 'r') as json_file:
         effect_params = json.load(json_file)
-    # Create a list of effects with their respective probabilities and value ranges
+    # Define available audio effects and their parameter configurations
+    # Each effect is paired with its corresponding parameters from the JSON config
     effects = [
-        (Compressor, effect_params['compressor']),
-        (Gain, effect_params['gain']),
-        (Chorus, effect_params['chorus']),
-        (LadderFilter, effect_params['ladder_filter']),
-        (Phaser, effect_params['phaser']),
-        (Delay, effect_params['delay']),
-        (Reverb, effect_params['reverb']),
+        (Compressor, effect_params['compressor']),     # Controls dynamic range
+        (Gain, effect_params['gain']),                 # Adjusts amplitude level
+        (Chorus, effect_params['chorus']),             # Creates chorus/ensemble effect
+        (LadderFilter, effect_params['ladder_filter']), # Moog-style filter
+        (Phaser, effect_params['phaser']),             # Creates sweeping filter effect
+        (Delay, effect_params['delay']),               # Adds echo/delay
+        (Reverb, effect_params['reverb']),             # Adds room ambience
     ]
     
-    # Create a new pedalboard with the specified effects
+    # Initialize pedalboard by creating effect instances
+    # Only effects that are successfully created (not None) are added
+    # create_effect() function handles individual effect parameter setup
     board = Pedalboard([effect for effect in (create_effect(effect_class, parameters)
                                           for effect_class, parameters in effects)
                     if effect is not None])
