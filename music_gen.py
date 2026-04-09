@@ -917,7 +917,9 @@ def generate_random_key():
     dice = random.random()
     for prob, key in key_ranges:
         if dice < prob:
-            return key    
+            return key
+    # Explicit fallback in case float-rounding leaves dice >= final prob
+    return key_ranges[-1][1]
 
 def generate_random_tempo():
     # https://blog.musiio.com/2021/08/19/which-musical-tempos-are-people-streaming-the-most/
@@ -928,6 +930,8 @@ def generate_random_tempo():
     for prob, min_tempo, max_tempo in tempo_ranges:
         if dice < prob:
             return random.randint(min_tempo, max_tempo)
+    # Explicit fallback in case float-rounding leaves dice >= final prob
+    return random.randint(*tempo_ranges[-1][1:])
 
 def generate_random_time_signature():
     """
