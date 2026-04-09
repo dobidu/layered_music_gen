@@ -1,3 +1,17 @@
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: — docs, polish, regression suite
+status: unknown
+last_updated: "2026-04-09T01:36:54.747Z"
+progress:
+  total_phases: 7
+  completed_phases: 1
+  total_plans: 4
+  completed_plans: 4
+  percent: 100
+---
+
 # STATE
 
 ## Project Reference
