@@ -1,5 +1,5 @@
 from midiutil import MIDIFile
-from music21 import *
+from music21 import roman, scale, pitch
 from pydub import AudioSegment
 from midi2audio import FluidSynth
 from datetime import datetime
@@ -9,8 +9,6 @@ import time
 import json
 import random
 import os
-import glob
-from multiprocessing import Pool, cpu_count
 import uuid
 import musicality_score
 from enhanced_duration_validator import DurationValidator, NoteValue
@@ -1025,12 +1023,7 @@ def create_song(
     song_info['measures'] = measures
     song_info['time_signatures'] = song_signatures
     song_info['name'] = name
-    song_info['swing_amount'] = swing_amount  
-
-    ha = {}
-    ba = {}
-    me = {}
-    be = {}
+    song_info['swing_amount'] = swing_amount
 
     song_name = name
     start_time = time.time()
@@ -1043,7 +1036,7 @@ def create_song(
     song_unique_parts, song_arrangement = generate_song_arrangement()
 
     # Generates the musical components
-    ha, ba, me, be, an = generate_song_parts(
+    ha, ba, me, be, _ = generate_song_parts(
         key=key,
         tempo=tempo,
         song_signatures=song_signatures,
@@ -1152,7 +1145,6 @@ def generate_song(id: int):
             break
     
     # Generates unique name for the song
-    now = datetime.now()
     song_name = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4()}"
     song_name = song_name[:20]  # 20 chars
     
