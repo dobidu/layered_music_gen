@@ -1,0 +1,6 @@
+# Development-only dependencies (Phase 1 scaffolding).
+# Phase 3 will move these into pyproject.toml [project.optional-dependencies].dev
+# and this file will be deleted.
+-r requirements.txt
+pytest>=8.0
+pytest-cov>=5.0
