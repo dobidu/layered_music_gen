@@ -1157,5 +1157,6 @@ def generate_song(id: int):
 
 # Example usage
 
-for i in range(1):
-    generate_song(i)
+if __name__ == "__main__":
+    for i in range(1):
+        generate_song(i)
