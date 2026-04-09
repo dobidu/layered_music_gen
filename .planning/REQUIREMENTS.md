@@ -15,7 +15,7 @@ Inputs: `.planning/PROJECT.md`, `.planning/codebase/*`, `.planning/research/*`.
 
 **R-S1 — Importability.** `music_gen.py` must be importable without triggering generation. Wrap the bottom-of-file execution (`music_gen.py:1158-1161`) in `if __name__ == "__main__":`.
 
-**R-S2 — Explicit imports.** Replace `from music21 import *` (`music_gen.py:2`) with explicit symbol imports for only the names actually used.
+**R-S2 — Explicit imports.** ✓ Complete (Plan 01-03). Replace `from music21 import *` (`music_gen.py:2`) with explicit symbol imports for only the names actually used.
 
 **R-S3 — Bug fix: arrangement re-roll.** `mix_and_save` must not re-call `generate_song_arrangement()` (`music_gen.py:760`). Arrangement must be produced once and passed through the pipeline so the MIDI files and rendered audio describe the same structure. (PITFALLS P-A, confirmed by grep.)
 
@@ -25,9 +25,9 @@ Inputs: `.planning/PROJECT.md`, `.planning/codebase/*`, `.planning/research/*`.
 
 **R-S6 — Time-signature registry.** Consolidate time-signature logic into one registry module. Today it is scattered across `verify_pattern_for_time_signature` (`music_gen.py:22`), `verify_beat_pattern` (`:42`), `calculate_measures_for_time_signature` (`:54`), `generate_random_time_signature`, and `enhanced_duration_validator.DurationValidator`. Adding a signature must touch one location. **Must land before generator extraction.**
 
-**R-S7 — Structured logging.** Replace all 32+ `print()` calls in `music_gen.py` with `logging` calls using the already-installed `python-json-logger`. Fix the bare `except:` blocks in `musicality_score.py:66, 94, 173, 205, 239` — narrow exceptions + `logger.exception`.
+**R-S7 — Structured logging.** Partially complete (Plan 01-03): `musicality_score.py` exception handlers narrowed + `logger.exception`. `print()` migration in `music_gen.py` deferred to Phase 2 per ROADMAP scope. Replace all 32+ `print()` calls in `music_gen.py` with `logging` calls using the already-installed `python-json-logger`. Fix the bare `except:` blocks in `musicality_score.py:66, 94, 173, 205, 239` — narrow exceptions + `logger.exception`.
 
-**R-S8 — Dead code removal.** Remove unused imports (`glob`, `Pool`, `cpu_count`, `time`) and unused variables (`beat_annotations`, `ha`, `ba`, `me`, `be`, `now`) from `music_gen.py`. Also remove the `uuid` PyPI entry from `requirements.txt` (stdlib in Python 3).
+**R-S8 — Dead code removal.** ✓ Complete (Plan 01-03). Remove unused imports (`glob`, `Pool`, `cpu_count`, `time`) and unused variables (`beat_annotations`, `ha`, `ba`, `me`, `be`, `now`) from `music_gen.py`. Also remove the `uuid` PyPI entry from `requirements.txt` (stdlib in Python 3).
 
 **R-S9 — Soundfont pool detection.** At startup / config load, log the number of soundfonts in each `sf/<layer>/` directory. Warn if any layer has < 3 options (PITFALLS P-5 detection).
 

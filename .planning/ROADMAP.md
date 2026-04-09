@@ -35,7 +35,7 @@ Each phase has a clear goal, must-have deliverables, requirement coverage from `
 Plans:
 - [x] 01-01-importability-and-arrangement-fix-PLAN.md — Wrap top-level execution in `__main__` guard and fix the arrangement re-roll bug (PITFALLS P-A) by computing arrangement once in `create_song` and threading it into `mix_and_save`. (R-S1, R-S3)
 - [x] 01-02-pydub-gain-pan-fix-PLAN.md — Fix pydub gain/pan no-op (PITFALLS P-B) so `levels.json` actually affects output. (R-S4)
-- [ ] 01-03-code-hygiene-PLAN.md — Explicit `music21` imports, narrowed exception handlers in `musicality_score.py`, dead-code/import removal in `music_gen.py`, and `uuid` stub removed from `requirements.txt`. (R-S2, R-S7, R-S8)
+- [x] 01-03-code-hygiene-PLAN.md — Explicit `music21` imports, narrowed exception handlers in `musicality_score.py`, dead-code/import removal in `music_gen.py`, and `uuid` stub removed from `requirements.txt`. (R-S2, R-S7, R-S8)
 - [ ] 01-04-pytest-skeleton-and-pure-function-tests-PLAN.md — First pytest skeleton via `dev-requirements.txt` plus unit tests for `verify_pattern_for_time_signature`, `verify_beat_pattern', `validate_measures`, and `DurationValidator`. (R-S7, R-Q2)
 
 ---

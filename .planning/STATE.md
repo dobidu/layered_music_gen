@@ -12,8 +12,8 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
 - Active phase: 01-stabilize-i-bug-fixes-and-guardrails
-- Current plan: 01-03 (next) — 01-02 completed 2026-04-08
-- Progress: 2 of 4 plans complete (01-01, 01-02)
+- Current plan: 01-04 (next) — 01-03 completed 2026-04-08
+- Progress: 3 of 4 plans complete (01-01, 01-02, 01-03)
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -44,10 +44,11 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Recent decisions
 
 - **2026-04-08 (Plan 01-02):** `levels.json` volume fields interpreted as LINEAR amplitudes (range 0.5-1.0 observed) and converted to dB at apply time via `20*log10(v)` with a `1e-6` floor. R-S4 / PITFALLS P-B closed.
+- **2026-04-08 (Plan 01-03):** music21 symbols narrowed to `{roman, scale, pitch}` (verified by grep). `musicality_score.py` exception handlers narrowed to `(ValueError, RuntimeError, IndexError, FloatingPointError)` for analysis methods, `(FileNotFoundError, OSError, ValueError, RuntimeError)` for the outer file handler; all use `logger.exception(...)`. Kept `import time`/`import uuid` (still used; `uuid` removal deferred to Phase 5 R-P1). `print`→`logging` migration in `music_gen.py` deferred to Phase 2 per ROADMAP. R-S2 / R-S7 (musicality_score portion) / R-S8 closed.
 
 ## Next command
 
-`/gsd-execute-phase 01` (continue with plan 01-03)
+`/gsd-execute-phase 01` (continue with plan 01-04)
 
 ---
 *Last updated: 2026-04-08 after initialization*
