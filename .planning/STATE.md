@@ -11,7 +11,9 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: none yet — ready for `/gsd-plan-phase 1`
+- Active phase: 01-stabilize-i-bug-fixes-and-guardrails
+- Current plan: 01-03 (next) — 01-02 completed 2026-04-08
+- Progress: 2 of 4 plans complete (01-01, 01-02)
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -39,9 +41,13 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 - Git identity is not configured in this repo. All planning documents are written to disk but uncommitted. User must run `git config user.email` / `user.name` (or set them globally) before the GSD commit helper can commit. Files currently uncommitted: `.planning/codebase/*` (7 files), `.planning/PROJECT.md`, `.planning/config.json`, `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, `.planning/research/*` (5 files), `.planning/STATE.md`.
 
+## Recent decisions
+
+- **2026-04-08 (Plan 01-02):** `levels.json` volume fields interpreted as LINEAR amplitudes (range 0.5-1.0 observed) and converted to dB at apply time via `20*log10(v)` with a `1e-6` floor. R-S4 / PITFALLS P-B closed.
+
 ## Next command
 
-`/gsd-plan-phase 1`
+`/gsd-execute-phase 01` (continue with plan 01-03)
 
 ---
 *Last updated: 2026-04-08 after initialization*

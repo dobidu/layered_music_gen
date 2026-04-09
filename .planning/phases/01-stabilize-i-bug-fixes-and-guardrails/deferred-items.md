@@ -1,0 +1,1 @@
+- [env] `python3 -c "import music_gen"` fails with `ModuleNotFoundError: No module named 'music21'` (pre-existing; deps not installed in runner env). Syntax compiles cleanly via `py_compile`. Logged during Plan 01-02 execution.
