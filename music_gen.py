@@ -203,8 +203,6 @@ def generate_chord_progression(key, tempo, time_signature, measures, name, part,
     
     # chooses and applies a pattern
     chord_pattern = random.choice(chord_patterns[part])
-    
-    chord_pattern = random.choice(chord_patterns[part])
     base_duration = validator.get_suggested_duration(time_signature, 'chord')
     chord_duration = validator.get_valid_duration(
         base_duration,
