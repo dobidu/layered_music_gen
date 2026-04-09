@@ -844,15 +844,20 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         melody = AudioSegment.from_wav(apply_fx_to_layer(melo_wav, melody_board))
         harmony = AudioSegment.from_wav(apply_fx_to_layer(harm_wav, harmony_board))
         bassline = AudioSegment.from_wav(apply_fx_to_layer(bass_wav, bassline_board))
-        # Volume and panning for each layer
-        beat.volume = float(levels[part]['beat']['volume'])
-        melody.volume = float(levels[part]['melody']['volume'])
-        harmony.volume = float(levels[part]['harmony']['volume'])
-        bassline.volume = float(levels[part]['bassline']['volume'])
-        beat.pan(float(levels[part]['beat']['panning']))
-        melody.pan(float(levels[part]['melody']['panning']))
-        harmony.pan(float(levels[part]['harmony']['panning']))
-        bassline.pan(float(levels[part]['bassline']['panning']))      
+        # Volume and panning for each layer (R-S4 / PITFALLS P-B fix).
+        # `.volume =` was a no-op (read-only property); `.pan()` returns a new
+        # segment so its return must be captured. Values in levels.json are
+        # linear amplitudes; convert to dB via 20*log10(v) (clamped to avoid log(0)).
+        def _lin_to_db(v: float) -> float:
+            return 20.0 * math.log10(max(float(v), 1e-6))
+        beat = beat.apply_gain(_lin_to_db(levels[part]['beat']['volume']))
+        melody = melody.apply_gain(_lin_to_db(levels[part]['melody']['volume']))
+        harmony = harmony.apply_gain(_lin_to_db(levels[part]['harmony']['volume']))
+        bassline = bassline.apply_gain(_lin_to_db(levels[part]['bassline']['volume']))
+        beat = beat.pan(float(levels[part]['beat']['panning']))
+        melody = melody.pan(float(levels[part]['melody']['panning']))
+        harmony = harmony.pan(float(levels[part]['harmony']['panning']))
+        bassline = bassline.pan(float(levels[part]['bassline']['panning']))
         # Create an empty AudioSegment to use as the initial mix
         mix = AudioSegment.silent(duration=beat.duration_seconds*1000)
         # Overlay each track onto the mix based on its probability value        
