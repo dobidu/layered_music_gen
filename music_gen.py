@@ -339,7 +339,7 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
         note = melody[i]
         velocity = random.randint(70, 100)
         mf.addNote(track, 0, note, time, note_durations[i], velocity)
-        time += note_duration
+        time += note_durations[i]
 
     print("\t\t\tMelody: " + str(melody))
 
@@ -449,7 +449,7 @@ def generate_bassline(key, tempo, time_signature, measures, name, part, chord_pr
         note_obj.octave = 2
         
         mf.addNote(track, 0, note_obj.midi, current_time, note_durations[i], velocity)
-        current_time += note_duration
+        current_time += note_durations[i]
 
     # Saves MIDI file
     directory = name.split('-')[0]
