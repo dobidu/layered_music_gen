@@ -12,8 +12,8 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
 - Active phase: 01-stabilize-i-bug-fixes-and-guardrails
-- Current plan: 01-04 (next) — 01-03 completed 2026-04-08
-- Progress: 3 of 4 plans complete (01-01, 01-02, 01-03)
+- Current plan: Phase 01 complete — 01-04 completed 2026-04-08
+- Progress: 4 of 4 plans complete (01-01, 01-02, 01-03, 01-04) — Phase 01 done
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -45,10 +45,11 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 - **2026-04-08 (Plan 01-02):** `levels.json` volume fields interpreted as LINEAR amplitudes (range 0.5-1.0 observed) and converted to dB at apply time via `20*log10(v)` with a `1e-6` floor. R-S4 / PITFALLS P-B closed.
 - **2026-04-08 (Plan 01-03):** music21 symbols narrowed to `{roman, scale, pitch}` (verified by grep). `musicality_score.py` exception handlers narrowed to `(ValueError, RuntimeError, IndexError, FloatingPointError)` for analysis methods, `(FileNotFoundError, OSError, ValueError, RuntimeError)` for the outer file handler; all use `logger.exception(...)`. Kept `import time`/`import uuid` (still used; `uuid` removal deferred to Phase 5 R-P1). `print`→`logging` migration in `music_gen.py` deferred to Phase 2 per ROADMAP. R-S2 / R-S7 (musicality_score portion) / R-S8 closed.
+- **2026-04-08 (Plan 01-04):** pytest skeleton landed with 95 passing tests across `tests/test_time_signature.py` and `tests/test_duration_validator.py` (runtime 2.75s). `dev-requirements.txt` and `tests/conftest.py` sys.path shim are intentional throwaway scaffolding scheduled for deletion in Phase 3. Tests pin current behavior including the cosmetic-if in `verify_beat_pattern` — Phase 2 registry refactor must preserve `len(pattern) == numerator` for ALL time signatures. Local `.venv/` required because system Python is PEP-668 managed (Debian-family). R-Q2 initial coverage closed. Phase 01 complete.
 
 ## Next command
 
-`/gsd-execute-phase 01` (continue with plan 01-04)
+`/gsd-transition` (Phase 01 complete → move to Phase 02)
 
 ---
-*Last updated: 2026-04-08 after initialization*
+*Last updated: 2026-04-08 after Plan 01-04 completion*
