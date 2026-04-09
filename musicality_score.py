@@ -63,8 +63,8 @@ class MusicalityAnalyzer:
                 'reasonableness': tempo_reasonableness,
                 'clarity': tempo_clarity
             }
-        except Exception as e:
-            self.logger.error(f"Error in tempo analysis: {str(e)}")
+        except (ValueError, RuntimeError, IndexError, FloatingPointError) as exc:
+            self.logger.exception("Error in tempo analysis: %s", exc)
             return {'stability': 0, 'reasonableness': 0, 'clarity': 0}
 
     def analyze_harmony(self, y: np.ndarray, sr: int) -> Dict[str, float]:
@@ -91,8 +91,8 @@ class MusicalityAnalyzer:
                 'stability': 1 - harmonic_changes,
                 'consonance': max(0, consonance)
             }
-        except Exception as e:
-            self.logger.error(f"Error in harmony analysis: {str(e)}")
+        except (ValueError, RuntimeError, IndexError, FloatingPointError) as exc:
+            self.logger.exception("Error in harmony analysis: %s", exc)
             return {'key_clarity': 0, 'stability': 0, 'consonance': 0}
 
     def analyze_rhythm(self, y: np.ndarray, sr: int) -> Dict[str, float]:
@@ -170,8 +170,8 @@ class MusicalityAnalyzer:
             # Normalização final mais suave
             return {k: np.clip(v, 0, 1) for k, v in rhythm_scores.items()}
 
-        except Exception as e:
-            self.logger.error(f"Error in rhythm analysis: {str(e)}")
+        except (ValueError, RuntimeError, IndexError, FloatingPointError) as exc:
+            self.logger.exception("Error in rhythm analysis: %s", exc)
             return {
                 'regularity': 0,
                 'strength': 0,
@@ -202,8 +202,8 @@ class MusicalityAnalyzer:
                 'noise_level': 1.0 - noise_score,
                 'music_signal_ratio': noise_score
             }
-        except Exception as e:
-            self.logger.error(f"Error in noise analysis: {str(e)}")
+        except (ValueError, RuntimeError, IndexError, FloatingPointError) as exc:
+            self.logger.exception("Error in noise analysis: %s", exc)
             return {'noise_level': 1.0, 'music_signal_ratio': 0.0}
 
     def calculate_musicality(self, filename: str) -> Tuple[float, Dict[str, float]]:
@@ -236,8 +236,8 @@ class MusicalityAnalyzer:
 
             return total_score, scores
 
-        except Exception as e:
-            self.logger.error(f"Error processing file {filename}: {str(e)}")
+        except (FileNotFoundError, OSError, ValueError, RuntimeError) as exc:
+            self.logger.exception("Error processing file %s: %s", filename, exc)
             return 0.0, {}
 
 def get_musicality_score(filename: str) -> Tuple[float, Dict[str, float]]:
