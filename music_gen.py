@@ -890,6 +890,8 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     this_transition = ['end', song_time]
     song_transitions.append(this_transition)
     # Iterate through song_parts and concatenate them into a single file
+    if not song_parts:
+        raise RuntimeError("No song parts were rendered; cannot assemble final mix")
     song = AudioSegment.from_wav(song_parts[0])
     for part_wav in song_parts[1:]:
         song += AudioSegment.from_wav(part_wav)
