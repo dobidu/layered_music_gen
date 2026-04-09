@@ -755,10 +755,13 @@ def pedalboard_info_json(board):
     return pedals_and_parameters
     
 # Mix song parts and save the result to WAV files
-def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, name):
-    # TODO: only render and mix the parts that are used in the song arrangement
-    song_unique_parts, song_arrangement = generate_song_arrangement()
-    print("Song arrangement: "+ str(song_arrangement) + "\n")
+def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, name,
+                 song_unique_parts, song_arrangement):
+    # Arrangement is now produced once upstream (see create_song) and threaded through.
+    # See PITFALLS P-A / R-S3: do NOT re-roll the arrangement here; doing so
+    # re-rolls RNG and can decouple the rendered audio from the MIDI structure.
+    # TODO (later phase): only render and mix the parts that are used in the song arrangement
+    print("Song arrangement: " + str(song_arrangement) + "\n")
     number_of_parts = len(song_arrangement)
     song_parts = []
     part_layers = {}
@@ -1028,7 +1031,12 @@ def create_song(
     start_time = time.time()
     
     print(f"Generating song with swing amount: {swing_amount}")
-    
+
+    # Compute arrangement ONCE for the whole song (R-S3 / PITFALLS P-A).
+    # Must happen before generate_song_parts so that all downstream RNG draws
+    # (soundfont selection, FX, layer probabilities) sit deterministically after it.
+    song_unique_parts, song_arrangement = generate_song_arrangement()
+
     # Generates the musical components
     ha, ba, me, be, an = generate_song_parts(
         key=key,
@@ -1042,7 +1050,8 @@ def create_song(
     
     # Mix components
     wav_name, arrangement, transitions, soundfonts, pedalboards, part_layers = mix_and_save(
-        ha, ba, me, be, song_name
+        ha, ba, me, be, song_name,
+        song_unique_parts, song_arrangement,
     )
     
     end_time = time.time()
