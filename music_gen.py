@@ -15,11 +15,31 @@ import musicality_score
 from musicgen.duration_validator import DurationValidator, NoteValue
 import config
 from timesig import TimeSignatureRegistry
+from musicgen.sampler import (
+    SongParams,
+    generate_random_key,
+    generate_random_tempo,
+    generate_random_time_signature,
+    generate_random_swing,
+    generate_song_measures,
+    time_signature_alternative,
+    generate_song_arrangement,
+    validate_measures_dict,
+)
 
 from typing import Tuple, Dict, List, Optional
 import math
 
 logger = logging.getLogger(__name__)
+
+# D-08: single module-level RNG threaded to every extracted sampler call site
+# this phase. Phase 5 (R-P7) replaces this with derive_sample_seed + make_rngs
+# so every generated sample gets its own deterministic RNG hierarchy.
+_rng = random.Random()
+
+# Preserve the pre-existing ``validate_measures`` name for back-compat — it's
+# the same function as ``validate_measures_dict`` in musicgen.sampler.
+validate_measures = validate_measures_dict
 
 
 def verify_pattern_for_time_signature(chord_pattern: List[str], time_signature: str) -> bool:
@@ -37,14 +57,9 @@ def calculate_measures_for_time_signature(base_length: int, time_signature: str)
     """Delegates to TimeSignatureRegistry per R-S6."""
     return TimeSignatureRegistry.lookup(time_signature).measures_for(base_length)
 
-def validate_measures(measures: Dict[str, int], signatures: Dict[str, str]) -> bool:
-    """Validate the number of measures for each part based on time signature.
-    Cross-signature function — iterates parts and delegates per-sig validation."""
-    for part, measure_count in measures.items():
-        spec = TimeSignatureRegistry.lookup(signatures[part])
-        if not spec.measure_count_valid(measure_count):
-            return False
-    return True
+# ``validate_measures`` was extracted to ``musicgen.sampler.validate_measures_dict``
+# and re-aliased at module top as ``validate_measures = validate_measures_dict``
+# (03-03 shim) — keep callers working with zero changes to their arg lists.
 
 def get_midi_time_signature_values(time_signature: str) -> Tuple[int, int]:
     """Convert musical time signature to MIDI format values.
@@ -505,47 +520,9 @@ def save_beat_annotations(name, beat_annotations):
 
     logger.info("Beat annotations saved to: %s", output_file)
 
-def generate_song_arrangement(structures_file: Optional[str] = None) -> Tuple[List[str], List[str]]:
-    """
-    Generate a musical arrangement based on common music structures.
+# ``generate_song_arrangement`` was extracted to ``musicgen.sampler`` (03-03).
+# Callers pass ``_rng`` as the new first positional argument.
 
-    Args:
-        structures_file: Path to the JSON file containing the song structures.
-            Defaults to config.DEFAULT_SONG_STRUCTURES_FILE when None.
-
-    Returns:
-        Tuple containing (unique parts, complete arrangement)
-    """
-    if structures_file is None:
-        structures_file = config.DEFAULT_SONG_STRUCTURES_FILE
-    try:
-        if not os.path.exists(structures_file):
-            raise FileNotFoundError(f"Structures file not found: {structures_file}")
-            
-        with open(structures_file, 'r') as f:
-            data = json.load(f)
-            
-        if 'common_structures' not in data:
-            raise KeyError("Missing 'common_structures' in JSON file")
-            
-        structures = data['common_structures']
-        
-        if not structures or not isinstance(structures, list):
-            raise ValueError("Invalid or empty structures list")
-            
-        result = random.choice(structures)
-        
-        # Generate a list of unique elements in the arrangement
-        unique_elements = list(set(result))
-        
-        return unique_elements, result
-        
-    except (json.JSONDecodeError, FileNotFoundError, KeyError, ValueError) as e:
-        # Default structure in case of error
-        default_structure = ['intro', 'verse', 'chorus', 'outro']
-        logger.warning("Using default structure due to error", exc_info=True)
-        return list(set(default_structure)), default_structure
-    
 def read_instrument_probabilities(file_path):
     with open(file_path) as f:
         inst_probabilities = json.load(f)
@@ -561,32 +538,8 @@ def get_levels(file_path):
         levels = json.load(f)
     return levels  
 
-def generate_random_swing() -> float:
-    """
-    Generates a random swing value with a weighted distribution.
-    Favors more musically appropriate values.
-    
-    Returns:
-        float: Swing value between 0.5 and 0.75
-    """
-    # Distribution that favors moderate swings
-    # 0.5 = no swing
-    # 0.66 = traditional jazz
-    # 0.75 = extreme swing 
-    swing_weights = [
-        (0.5, 0.3),   # 30% no swing
-        (0.66, 0.5),  # 50% traditional jazz
-        (0.75, 0.2)   # 20% extreme swing
-    ]
-    
-    base_swing = random.choices(
-        [s[0] for s in swing_weights],
-        weights=[s[1] for s in swing_weights]
-    )[0]
-    
-    # random variations
-    variation = random.uniform(-0.02, 0.02)
-    return min(0.75, max(0.5, base_swing + variation))
+# ``generate_random_swing`` was extracted to ``musicgen.sampler`` (03-03).
+# Callers pass ``_rng``.
 
 def create_effect(effect_class, parameters):
     # Unpack the parameters
@@ -805,80 +758,10 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         
     return song_file_wav, song_arrangement, song_transitions, soundfonts, pedalboards, part_layers
 
-def generate_random_key():
-    # https://www.digitaltrends.com/music/whats-the-most-popular-music-key-spotify/
-    # https://web.archive.org/web/20190426230344/https://insights.spotify.com/us/2015/05/06/most-popular-keys-on-spotify/
-    # https://forum.bassbuzz.com/t/most-used-keys-on-spotify/5886
-
-    key_ranges = [(0.107, 'G'), (0.209, 'C'), (0.296, 'D'), (0.357, 'A'), (0.417, 'C#'), (0.47, 'F'),
-                  (0.518, 'Am'), (0.561, 'G#'), (0.603, 'Em'), (0.645, 'Bm'), (0.681, 'E'), (0.716, 'A#'),
-                  (0.748, 'A#m'), (0.778, 'Fm'), (0.805, 'F#'), (0.831, 'B'), (0.857, 'Gm'), (0.883, 'Dm'),
-                  (0.908, 'F#m'), (0.932, 'D#'), (0.956, 'Cm'), (0.977, 'C#m'), (0.989, 'G#m'), (1.0, 'D#m')
-    ]
-    dice = random.random()
-    for prob, key in key_ranges:
-        if dice < prob:
-            return key
-    # Explicit fallback in case float-rounding leaves dice >= final prob
-    return key_ranges[-1][1]
-
-def generate_random_tempo():
-    # https://blog.musiio.com/2021/08/19/which-musical-tempos-are-people-streaming-the-most/
-    tempo_ranges = [(0.0183, 60, 70), (0.0454, 70, 80), (0.1849, 80, 90), (0.3721, 90, 100),
-                    (0.4817, 100, 110), (0.5747, 110, 120), (0.7048, 120, 130), (0.7917, 130, 140),
-                    (0.8958, 140, 150), (0.9739, 150, 160), (1.0, 160, 170)]
-    dice = random.random()
-    for prob, min_tempo, max_tempo in tempo_ranges:
-        if dice < prob:
-            return random.randint(min_tempo, max_tempo)
-    # Explicit fallback in case float-rounding leaves dice >= final prob
-    return random.randint(*tempo_ranges[-1][1:])
-
-def generate_random_time_signature():
-    """Generates a random time signature based on weighted probabilities.
-    Delegates to TimeSignatureRegistry.sample_random() per R-S6.
-    Fixes Pitfall 5: uses random.choices instead of threshold-loop — no missing-return bug."""
-    return TimeSignatureRegistry.sample_random()
-
-def time_signature_alternative(base_time_signature):
-    """Generates a variation of the given time signature.
-    Delegates to TimeSignatureRegistry per R-S6."""
-    spec = TimeSignatureRegistry.lookup(base_time_signature)
-    return random.choice(spec.alternatives) if spec.alternatives else "4/4"
-
-def generate_song_measures(time_signature: str, time_signature_variation: float) -> Tuple[Dict[str, int], Dict[str, str]]:
-    """
-    Generates a set of measures for each part of a song, based on a given time signature and variation.
-    """
-
-    base_lengths = {
-        'intro': random.choice([8, 16]),
-        'verse': random.choice([16, 32]),
-        'chorus': random.choice([16, 32]),
-        'bridge': random.choice([8, 16]),
-        'outro': random.choice([8, 16])
-    }
-    
-    # Sets time signatures for each part
-    if random.random() < time_signature_variation:
-        signatures = {
-            'intro': random.choice([time_signature, time_signature_alternative(time_signature)]),
-            'verse': random.choice([time_signature, time_signature_alternative(time_signature)]),
-            'chorus': random.choice([time_signature, time_signature_alternative(time_signature)]),
-            'bridge': random.choice([time_signature, time_signature_alternative(time_signature)]),
-            'outro': random.choice([time_signature, time_signature_alternative(time_signature)])
-        }
-    else:
-        signatures = {part: time_signature for part in base_lengths.keys()}
-    
-    # Adjusts number of bars based on time signature
-    measures = {
-        part: calculate_measures_for_time_signature(length, signatures[part])
-        for part, length in base_lengths.items()
-    }
-    
-    return measures, signatures
-    
+# The five sampler functions ``generate_random_key``, ``generate_random_tempo``,
+# ``generate_random_time_signature``, ``time_signature_alternative``, and
+# ``generate_song_measures`` were extracted to ``musicgen.sampler`` (03-03).
+# They are re-imported at module top; callers pass ``_rng`` per D-08.
 
 def create_song(
     key: str,
@@ -909,7 +792,7 @@ def create_song(
     # (soundfont selection, FX, layer probabilities) sit deterministically after it.
     _structures_file = cfg.song_structures_file if cfg is not None else config.DEFAULT_SONG_STRUCTURES_FILE
     song_unique_parts, song_arrangement = generate_song_arrangement(
-        structures_file=_structures_file
+        _rng, structures_file=_structures_file
     )
 
     # Generates the musical components
@@ -1009,17 +892,17 @@ def generate_song(id: int, cfg: config.Config):
     """
     logger.info("Generating song #%s", id)
 
-    # Basic musical parameters
-    key = generate_random_key()
-    tempo = generate_random_tempo()
-    time_signature = generate_random_time_signature()
+    # Basic musical parameters (D-08: sampler draws threaded through module-level _rng)
+    key = generate_random_key(_rng)
+    tempo = generate_random_tempo(_rng)
+    time_signature = generate_random_time_signature(_rng)
     time_signature_variation = 1.0  # 100% chance of time signature variation
-    swing_amount = generate_random_swing()
+    swing_amount = generate_random_swing(_rng)
     swing_amount = min(0.75, max(0.5, float(swing_amount)))
 
     # Generates valid measurements and time signatures
     while True:
-        measures, signatures = generate_song_measures(time_signature, time_signature_variation)
+        measures, signatures = generate_song_measures(time_signature, time_signature_variation, _rng)
         if validate_measures(measures, signatures):
             break
 
