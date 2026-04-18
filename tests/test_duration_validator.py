@@ -1,5 +1,5 @@
 """
-Pure-method unit tests for enhanced_duration_validator.DurationValidator.
+Pure-method unit tests for musicgen.duration_validator.DurationValidator.
 
 Pin the CURRENT behavior of `get_suggested_duration` and `get_valid_duration`
 across the supported time signatures (2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 12/8) and
@@ -7,7 +7,7 @@ the four layer types (`melody`, `chord`, `bass`, `beat`).
 """
 import pytest
 
-from enhanced_duration_validator import DurationValidator, NoteValue
+from musicgen.duration_validator import DurationValidator, NoteValue
 
 
 @pytest.fixture
@@ -112,7 +112,7 @@ class TestGetValidDuration:
 class TestNoteValue:
     def test_note_value_enum_has_expected_members(self):
         names = {member.name for member in NoteValue}
-        # Spot-check well-known members from enhanced_duration_validator.py
+        # Spot-check well-known members from musicgen/duration_validator.py
         assert "WHOLE" in names
         assert "HALF" in names
         assert "QUARTER" in names

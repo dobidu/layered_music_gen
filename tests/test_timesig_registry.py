@@ -297,7 +297,7 @@ class TestMelodyDurations:
 # ---------------------------------------------------------------------------
 
 class TestValidDurations:
-    """valid_durations must match enhanced_duration_validator.py compound/simple sets."""
+    """valid_durations must match musicgen/duration_validator.py compound/simple sets."""
 
     @pytest.mark.parametrize("sig", ["6/8", "12/8"])
     def test_compound_valid_durations(self, sig):

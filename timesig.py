@@ -38,7 +38,7 @@ class TimeSignatureSpec:
     measure_multiplier: float                    # 1.0 for 4/4, 2.0 for compound/2-4, 4/3 for 3/4
     midi_denominator_power: int                  # 2 for denom=4, 3 for denom=8
     beats_per_measure: float                     # num/3 if compound else num
-    valid_durations: FrozenSet[float]            # matches enhanced_duration_validator exactly
+    valid_durations: FrozenSet[float]            # matches musicgen.duration_validator exactly
     primary_division: float                      # 3.0 compound, 2.0 simple
     max_duration: float                          # numerator for simple, DOTTED_QUARTER*(num/3) for compound
     min_duration: float                          # 0.25 (SIXTEENTH) for all
@@ -105,7 +105,7 @@ _SIMPLE_NOTE_DURATIONS: Dict[str, float] = {
     "sixteenth": 0.25  # 1 sixteenth note
 }
 
-# Valid durations from enhanced_duration_validator.py (must match exactly)
+# Valid durations from musicgen/duration_validator.py (must match exactly)
 _COMPOUND_VALID_DURATIONS: FrozenSet[float] = frozenset({1.5, 1.0, 0.75, 0.5, 0.25})
 _SIMPLE_VALID_DURATIONS: FrozenSet[float] = frozenset({4.0, 2.0, 1.0, 0.5, 0.25, 3.0, 1.5, 0.75})
 

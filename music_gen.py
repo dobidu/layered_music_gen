@@ -12,7 +12,7 @@ import random
 import os
 import uuid
 import musicality_score
-from enhanced_duration_validator import DurationValidator, NoteValue
+from musicgen.duration_validator import DurationValidator, NoteValue
 import config
 from timesig import TimeSignatureRegistry
 
