@@ -21,7 +21,7 @@ Inputs: `.planning/PROJECT.md`, `.planning/codebase/*`, `.planning/research/*`.
 
 **R-S4 — Bug fix: pydub gain/pan.** `music_gen.py:845-852` currently assigns to the read-only `.volume` property and discards the return of `.pan()` — `levels.json` has no effect today. Replace with `AudioSegment.apply_gain(...)` and `segment = segment.pan(...)`. (PITFALLS P-B, confirmed by grep.)
 
-**R-S5 — Config centralization.** Extract a single config module (`config.py` or equivalent) that owns all paths to: soundfont directories (`sf/<layer>/`), FX JSON files (`*_fx.json`), `inst_probabilities.json`, `levels.json`, `song_structures.json`, `chord_patterns.txt`, `beat_roll_patterns_*.txt`. No path literals remain outside config.
+**R-S5 — Config centralization.** ✓ Complete (Plan 02-01). Extract a single config module (`config.py` or equivalent) that owns all paths to: soundfont directories (`sf/<layer>/`), FX JSON files (`*_fx.json`), `inst_probabilities.json`, `levels.json`, `song_structures.json`, `chord_patterns.txt`, `beat_roll_patterns_*.txt`. No path literals remain outside config.
 
 **R-S6 — Time-signature registry.** Consolidate time-signature logic into one registry module. Today it is scattered across `verify_pattern_for_time_signature` (`music_gen.py:22`), `verify_beat_pattern` (`:42`), `calculate_measures_for_time_signature` (`:54`), `generate_random_time_signature`, and `enhanced_duration_validator.DurationValidator`. Adding a signature must touch one location. **Must land before generator extraction.**
 
@@ -29,7 +29,7 @@ Inputs: `.planning/PROJECT.md`, `.planning/codebase/*`, `.planning/research/*`.
 
 **R-S8 — Dead code removal.** ✓ Complete (Plan 01-03). Remove unused imports (`glob`, `Pool`, `cpu_count`, `time`) and unused variables (`beat_annotations`, `ha`, `ba`, `me`, `be`, `now`) from `music_gen.py`. Also remove the `uuid` PyPI entry from `requirements.txt` (stdlib in Python 3).
 
-**R-S9 — Soundfont pool detection.** At startup / config load, log the number of soundfonts in each `sf/<layer>/` directory. Warn if any layer has < 3 options (PITFALLS P-5 detection).
+**R-S9 — Soundfont pool detection.** ✓ Complete (Plan 02-01). At startup / config load, log the number of soundfonts in each `sf/<layer>/` directory. Warn if any layer has < 3 options (PITFALLS P-5 detection).
 
 **R-S10 — First test suite.** `pytest` suite covering the pure-function surface: time-signature validators, `DurationValidator`, random parameter samplers (seeded), chord pattern parsing. No audio-dependent tests yet. CI-runnable in < 10 s.
 

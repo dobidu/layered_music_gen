@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Ready to execute
-last_updated: "2026-04-18T15:34:41.195Z"
+status: Executing Phase 02
+last_updated: "2026-04-18T16:36:25Z"
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
-  percent: 57
+  completed_plans: 5
+  percent: 71
 ---
 
 # STATE
@@ -19,15 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 **Core value:** Every generated sample is a complete, reproducible, fully-labeled training example.
-**Current focus:** Milestone v0.1 — not yet started. Phase 1 (Stabilize I) is next.
+**Current focus:** Phase 02 — stabilize-ii-config-time-signature-registry-logging
 
 ## Current position
 
+Phase: 02 (stabilize-ii-config-time-signature-registry-logging) — EXECUTING
+Plan: 2 of 3
+
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: 01-stabilize-i-bug-fixes-and-guardrails
-- Current plan: Phase 01 complete — 01-04 completed 2026-04-08
-- Progress: 4 of 4 plans complete (01-01, 01-02, 01-03, 01-04) — Phase 01 done
+- Active phase: 02-stabilize-ii-config-time-signature-registry-logging
+- Current plan: 02-01 complete — config module and path migration completed 2026-04-18
+- Progress: 5 of 7 plans complete (01-01, 01-02, 01-03, 01-04, 02-01) — Phase 02 in progress (1/3 done)
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -60,10 +63,11 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 - **2026-04-08 (Plan 01-02):** `levels.json` volume fields interpreted as LINEAR amplitudes (range 0.5-1.0 observed) and converted to dB at apply time via `20*log10(v)` with a `1e-6` floor. R-S4 / PITFALLS P-B closed.
 - **2026-04-08 (Plan 01-03):** music21 symbols narrowed to `{roman, scale, pitch}` (verified by grep). `musicality_score.py` exception handlers narrowed to `(ValueError, RuntimeError, IndexError, FloatingPointError)` for analysis methods, `(FileNotFoundError, OSError, ValueError, RuntimeError)` for the outer file handler; all use `logger.exception(...)`. Kept `import time`/`import uuid` (still used; `uuid` removal deferred to Phase 5 R-P1). `print`→`logging` migration in `music_gen.py` deferred to Phase 2 per ROADMAP. R-S2 / R-S7 (musicality_score portion) / R-S8 closed.
 - **2026-04-08 (Plan 01-04):** pytest skeleton landed with 95 passing tests across `tests/test_time_signature.py` and `tests/test_duration_validator.py` (runtime 2.75s). `dev-requirements.txt` and `tests/conftest.py` sys.path shim are intentional throwaway scaffolding scheduled for deletion in Phase 3. Tests pin current behavior including the cosmetic-if in `verify_beat_pattern` — Phase 2 registry refactor must preserve `len(pattern) == numerator` for ALL time signatures. Local `.venv/` required because system Python is PEP-668 managed (Debian-family). R-Q2 initial coverage closed. Phase 01 complete.
+- **2026-04-18 (Plan 02-01):** Config threaded as explicit parameter through call chain (not module-level singleton) — preserves importability (Plan 01-01 property). cfg parameters default to None with fallback to config.Config() inside functions. generate_song_arrangement default arg changed from literal 'song_structures.json' to None + runtime fallback (Pitfall 7). T-02-01: os.path.abspath() on env/CLI path inputs. T-02-02: FileNotFoundError and PermissionError caught in pool report. R-S5 and R-S9 closed.
 
 ## Next command
 
-`/gsd-transition` (Phase 01 complete → move to Phase 02)
+Execute 02-02 plan (timesig registry).
 
 ---
-*Last updated: 2026-04-08 after Plan 01-04 completion*
+*Last updated: 2026-04-18 after Plan 02-01 completion*
