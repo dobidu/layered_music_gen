@@ -12,6 +12,7 @@ import os
 import uuid
 import musicality_score
 from enhanced_duration_validator import DurationValidator, NoteValue
+import config
 
 from typing import Tuple, Dict, List, Optional
 import math
@@ -490,12 +491,13 @@ def calculate_swing_offset(base_duration: float, swing_amount: float) -> float:
 
 
 def generate_beat(
-    part: str, 
+    part: str,
     tempo: int,
     time_signature: str,
     measures: int,
     name: str,
-    swing_amount: float = 0.5
+    swing_amount: float = 0.5,
+    cfg: config.Config = None,
 ) -> Tuple[str, List[float]]:
     """
     Generates a drum pattern with configurable swing.
@@ -512,14 +514,8 @@ def generate_beat(
         Tuple[str, List[float]]: (MIDI file name, list of time notes)
     """
     validator = DurationValidator()
-    beat_pattern_files = {
-        "2/4": "beat_roll_patterns_24.txt",
-        "4/4": "beat_roll_patterns_44.txt",
-        "3/4": "beat_roll_patterns_34.txt",
-        "6/8": "beat_roll_patterns_68.txt",
-        "7/8": "beat_roll_patterns_78.txt",
-        "12/8": "beat_roll_patterns_128.txt"
-    }
+    _beat_cfg = cfg if cfg is not None else config.Config()
+    beat_pattern_files = dict(_beat_cfg.beat_roll_pattern_files)
 
     mf = MIDIFile(1)
     track = 0
@@ -608,16 +604,19 @@ def save_beat_annotations(name, beat_annotations):
 
     print(f"Beat annotations saved to: {output_file}")
 
-def generate_song_arrangement(structures_file: str = 'song_structures.json') -> Tuple[List[str], List[str]]:
+def generate_song_arrangement(structures_file: Optional[str] = None) -> Tuple[List[str], List[str]]:
     """
     Generate a musical arrangement based on common music structures.
-    
+
     Args:
-        structures_file: Path to the JSON file containing the song structures
-        
+        structures_file: Path to the JSON file containing the song structures.
+            Defaults to config.DEFAULT_SONG_STRUCTURES_FILE when None.
+
     Returns:
         Tuple containing (unique parts, complete arrangement)
     """
+    if structures_file is None:
+        structures_file = config.DEFAULT_SONG_STRUCTURES_FILE
     try:
         if not os.path.exists(structures_file):
             raise FileNotFoundError(f"Structures file not found: {structures_file}")
@@ -752,7 +751,7 @@ def pedalboard_info_json(board):
     
 # Mix song parts and save the result to WAV files
 def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, name,
-                 song_unique_parts, song_arrangement):
+                 song_unique_parts, song_arrangement, *, cfg: config.Config = None):
     # Arrangement is now produced once upstream (see create_song) and threaded through.
     # See PITFALLS P-A / R-S3: do NOT re-roll the arrangement here; doing so
     # re-rolls RNG and can decouple the rendered audio from the MIDI structure.
@@ -769,11 +768,11 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     part_counter = 0
     soundfonts = {}
     pedalboards = {}
-    #TODO: configure soundfont directory 
-    beat_soundfont = get_random_sound_font(str(os.path.join('sf','beat')))
-    melody_soundfont = get_random_sound_font(str(os.path.join('sf','melody')))
-    harmony_soundfont = get_random_sound_font(str(os.path.join('sf','harmony')))
-    bassline_soundfont = get_random_sound_font(str(os.path.join('sf','bassline')))
+    _cfg = cfg if cfg is not None else config.Config()
+    beat_soundfont = get_random_sound_font(_cfg.sf_layer_dir('beat'))
+    melody_soundfont = get_random_sound_font(_cfg.sf_layer_dir('melody'))
+    harmony_soundfont = get_random_sound_font(_cfg.sf_layer_dir('harmony'))
+    bassline_soundfont = get_random_sound_font(_cfg.sf_layer_dir('bassline'))
     soundfonts['beat'] = beat_soundfont
     soundfonts['melody'] = melody_soundfont
     soundfonts['harmony'] = harmony_soundfont
@@ -782,10 +781,10 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     print("Melody soundfont: " + melody_soundfont)
     print("Harmony soundfont: " + harmony_soundfont)
     print("Bassline soundfont: " + bassline_soundfont)
-    beat_board = generate_pedalboard('beat_fx.json')
-    melody_board = generate_pedalboard('melody_fx.json')
-    harmony_board = generate_pedalboard('harmony_fx.json')
-    bassline_board = generate_pedalboard('bassline_fx.json')    
+    beat_board = generate_pedalboard(_cfg.fx_files['beat'])
+    melody_board = generate_pedalboard(_cfg.fx_files['melody'])
+    harmony_board = generate_pedalboard(_cfg.fx_files['harmony'])
+    bassline_board = generate_pedalboard(_cfg.fx_files['bassline'])    
     pedalboards['beat'] = pedalboard_info_json(beat_board)
     pedalboards['melody'] = pedalboard_info_json(melody_board)
     pedalboards['harmony'] = pedalboard_info_json(harmony_board)
@@ -794,10 +793,9 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     print("Melody pedalboard: " + str(melody_board))
     print("Harmony pedalboard: " + str(harmony_board))
     print("Bassline pedalboard: " + str(bassline_board))
-    # TODO: gather all file references in a single config file
-    inst_proba = read_instrument_probabilities('inst_probabilities.json')
+    inst_proba = read_instrument_probabilities(_cfg.inst_probabilities_file)
     levels = {}
-    levels = get_levels('levels.json')
+    levels = get_levels(_cfg.levels_file)
     print("Levels: " + str(levels))
     beat_part_mix = {}
     melody_part_mix = {}
@@ -1018,7 +1016,8 @@ def create_song(
     measures: Dict[str, int],
     name: str,
     chord_pat_file: str,
-    swing_amount: float
+    swing_amount: float,
+    cfg: config.Config = None,
 ) -> Dict:
 
     song_info = {}
@@ -1037,7 +1036,10 @@ def create_song(
     # Compute arrangement ONCE for the whole song (R-S3 / PITFALLS P-A).
     # Must happen before generate_song_parts so that all downstream RNG draws
     # (soundfont selection, FX, layer probabilities) sit deterministically after it.
-    song_unique_parts, song_arrangement = generate_song_arrangement()
+    _structures_file = cfg.song_structures_file if cfg is not None else config.DEFAULT_SONG_STRUCTURES_FILE
+    song_unique_parts, song_arrangement = generate_song_arrangement(
+        structures_file=_structures_file
+    )
 
     # Generates the musical components
     ha, ba, me, be, _ = generate_song_parts(
@@ -1047,13 +1049,15 @@ def create_song(
         song_measures=measures,
         name=song_name,
         chord_pat_file=chord_pat_file,
-        swing_amount=swing_amount
+        swing_amount=swing_amount,
+        cfg=cfg,
     )
-    
+
     # Mix components
     wav_name, arrangement, transitions, soundfonts, pedalboards, part_layers = mix_and_save(
         ha, ba, me, be, song_name,
         song_unique_parts, song_arrangement,
+        cfg=cfg,
     )
     
     end_time = time.time()
@@ -1097,7 +1101,8 @@ def generate_song_parts(
     song_measures: Dict[str, int],
     name: str,
     chord_pat_file: str,
-    swing_amount: float
+    swing_amount: float,
+    cfg: config.Config = None,
 ) -> Tuple[Dict, Dict, Dict, Dict, Dict]:
 
     harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations = {}, {}, {}, {}, {}
@@ -1110,30 +1115,31 @@ def generate_song_parts(
         chord_progression, harm_filename[part] = generate_chord_progression(
             key, tempo, time_signature, measures, name_part, part, chord_pat_file
         )
-        
+
         melody, melo_filename[part] = generate_melody(
             key, tempo, time_signature, measures, name_part, part, chord_progression
         )
-        
+
         bass_filename[part] = generate_bassline(
             key, tempo, time_signature, measures, name_part, part, chord_progression, melody
         )
-        
+
         beat_filename[part], beat_annotations[part] = generate_beat(
-            part, tempo, time_signature, measures, name_part, swing_amount
+            part, tempo, time_signature, measures, name_part, swing_amount, cfg=cfg
         )
 
     return harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations
 
-def generate_song(id: int):
+def generate_song(id: int, cfg: config.Config):
     """
     Generates a complete song with all its components.
-    
+
     Args:
         id: Music id
+        cfg: Config instance with all path and override settings
     """
     print(f"Generating song #{str(id)}")
-    
+
     # Basic musical parameters
     key = generate_random_key()
     tempo = generate_random_tempo()
@@ -1141,17 +1147,17 @@ def generate_song(id: int):
     time_signature_variation = 1.0  # 100% chance of time signature variation
     swing_amount = generate_random_swing()
     swing_amount = min(0.75, max(0.5, float(swing_amount)))
-    
+
     # Generates valid measurements and time signatures
     while True:
         measures, signatures = generate_song_measures(time_signature, time_signature_variation)
         if validate_measures(measures, signatures):
             break
-    
+
     # Generates unique name for the song
     song_name = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4()}"
     song_name = song_name[:20]  # 20 chars
-    
+
     # Generates the music components
     song_info = create_song(
         key=key,
@@ -1159,14 +1165,16 @@ def generate_song(id: int):
         song_signatures=signatures,
         measures=measures,
         name=song_name,
-        chord_pat_file='chord_patterns.txt',
-        swing_amount=swing_amount
+        chord_pat_file=cfg.chord_patterns_file,
+        swing_amount=swing_amount,
+        cfg=cfg,
     )
-    
+
     return song_info
 
 # Example usage
 
 if __name__ == "__main__":
+    cfg = config.Config.load()
     for i in range(1):
-        generate_song(i)
+        generate_song(i, cfg)
