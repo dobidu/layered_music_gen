@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Ready to execute
-last_updated: "2026-04-18T20:10:35.091Z"
+status: Executing Phase 03
+last_updated: "2026-04-18T20:17:53Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 12
-  completed_plans: 7
-  percent: 58
+  completed_plans: 8
+  percent: 67
 ---
 
 # STATE
@@ -19,18 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 **Core value:** Every generated sample is a complete, reproducible, fully-labeled training example.
-**Current focus:** Phase 03 — package-skeleton-sampler-generators-extraction (context gathered, ready for planning)
+**Current focus:** Phase 03 — package-skeleton-sampler-generators-extraction
 
 ## Current position
 
-Phase: 03 (package-skeleton-sampler-generators-extraction) — CONTEXT GATHERED
-Plan: 0 of N (planning not yet started)
+Phase: 03 (package-skeleton-sampler-generators-extraction) — EXECUTING
+Plan: 2 of 5 (Plan 03-01 complete)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: 03-package-skeleton-sampler-generators-extraction — context captured 2026-04-18 (auto mode)
-- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-CONTEXT.md
-- Progress: Phase 02 complete (7 of 7 plans: 01-01, 01-02, 01-03, 01-04, 02-01, 02-02, 02-03); Phase 03 context ready for /gsd-plan-phase 3
+- Active phase: 03-package-skeleton-sampler-generators-extraction — Wave 1 (Plan 03-01) executed 2026-04-18
+- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-02-PLAN.md
+- Progress: Phase 02 complete; Phase 03 Wave 1 complete (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton + editable install green, 309 tests still pass). Ready for Wave 2 (Plan 03-02 — music21 isolation regression tests).
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -70,9 +70,11 @@ Plan: 0 of N (planning not yet started)
 
 - **2026-04-18 (Phase 03 CONTEXT, auto mode):** Phase 3 context captured with 25 decisions across 10 gray areas, all selected via --auto recommended defaults. Key locked decisions: src/ layout with `src/musicgen/` package (D-01/02); `music_gen.py` becomes a thin re-import shim to preserve the "old music_gen.py still executable for smoke testing" exit criterion (D-04/05); every extracted function takes an explicit `rng: random.Random` parameter with zero bare `random.*` in extracted code (D-07/08) — Phase 5 will build the RNG hierarchy on these ready-made signatures; `enhanced_duration_validator.py` moves to `src/musicgen/duration_validator.py` (D-10), `musicality_score.py` stays at root for Phase 4 (D-11); `pyproject.toml` is the single authoritative dependency manifest — delete `requirements.txt` and `dev-requirements.txt` (D-13/14); test imports rewrite to `musicgen.*` and delete `tests/conftest.py` sys.path shim (D-15/16); `SongParams` is a frozen dataclass embedding arrangement + per-part signatures + measures (D-20); music21 global-RNG audit lands this phase (D-23/24) to clear a Phase 5 blocker. `config.py` and `timesig.py` stay at repo root this phase (D-03) — will move in Phase 5. Phases 3 and 4 run serially, not parallel, so Phase 4 gets a stable package surface (D-25).
 
+- **2026-04-18 (Plan 03-01):** `pyproject.toml` (hatchling + 14 runtime deps + typer>=0.12 + pytest/cov/xdist dev extras) landed at repo root; `src/musicgen/` skeleton created (empty `__init__.py`, `__main__.py` delegator, `cli.py` typer stub with `info` command). `pip install -e '.[dev]'` now succeeds; `musicgen --help` and `python -m musicgen --help` both exit 0. `requirements.txt` + `dev-requirements.txt` deleted — pyproject.toml is the sole dep manifest. Two Rule 1/2 auto-fixes during execution: (a) pedalboard floor relaxed from `>=1.0.0` to `>=0.9.0` — no 1.x release exists on PyPI (this was a pre-existing bug in requirements.txt that blocked the editable install); (b) README.md Installation step updated from `pip install -r requirements.txt` to `pip install -e '.[dev]'`. Applied the RESEARCH.md Risk #1 override: `requires-python = ">=3.10"` (CONTEXT.md D-13's `">=3.9"` infeasible — typer>=0.12 and hatchling need 3.10+; inline comment preserves traceability). `[tool.pytest.ini_options] pythonpath = ["."]` wired so root `config.py`/`timesig.py` remain importable when Plan 03-05 deletes `tests/conftest.py`. Baseline 309 tests still pass. R-X1 closed; R-Q4 (version field) closed.
+
 ## Next command
 
-Phase 03 context gathered. Auto-advancing to `/gsd-plan-phase 3 --auto` to generate PLAN.md(s) and execute.
+Phase 03 Wave 1 complete. Next: `/gsd-execute-phase 3 --resume` → Wave 2 (Plan 03-02 — music21 global-RNG audit + isolation regression tests, D-23/D-24).
 
 ---
-*Last updated: 2026-04-18 after Phase 03 context capture (auto mode)*
+*Last updated: 2026-04-18 after Plan 03-01 (package skeleton + pyproject.toml) execution.*

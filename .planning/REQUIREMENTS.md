@@ -39,7 +39,7 @@ Inputs: `.planning/PROJECT.md`, `.planning/codebase/*`, `.planning/research/*`.
 
 Extraction order follows ARCHITECTURE.md. Each extraction lands with unit tests.
 
-**R-X1 — Package skeleton.** Create `src/musicgen/` with `__init__.py`, `__main__.py`, `cli.py`. Add `pyproject.toml` with `hatchling` build backend, `requires-python >= 3.9`, CLI entry point `musicgen = "musicgen.cli:app"`, and `[project.optional-dependencies].dev = ["pytest>=8.0", "pytest-cov>=5.0", "pytest-xdist>=3.5"]`. Add `typer>=0.12` as a runtime dependency.
+**R-X1 — Package skeleton.** Create `src/musicgen/` with `__init__.py`, `__main__.py`, `cli.py`. Add `pyproject.toml` with `hatchling` build backend, `requires-python >= 3.9`, CLI entry point `musicgen = "musicgen.cli:app"`, and `[project.optional-dependencies].dev = ["pytest>=8.0", "pytest-cov>=5.0", "pytest-xdist>=3.5"]`. Add `typer>=0.12` as a runtime dependency. **[Status: CLOSED 2026-04-18 by Plan 03-01.](/home/bidu/musicgen/.planning/phases/03-package-skeleton-sampler-generators-extraction/03-01-SUMMARY.md)** Override applied: `requires-python = ">=3.10"` (typer+hatchling pins rule out 3.9; see RESEARCH Risk #1).
 
 **R-X2 — Sampler.** Extract `sampler.py` with a `SongParams` dataclass and all `generate_random_*` + `generate_song_arrangement` functions. Functions take an explicit `rng: random.Random` parameter — no use of the module-level `random`. Unit-tested.
 
@@ -120,7 +120,7 @@ Extraction order follows ARCHITECTURE.md. Each extraction lands with unit tests.
 
 **R-Q3 — Regression test.** The determinism regression test from R-P8 is part of CI.
 
-**R-Q4 — Version field.** `pyproject.toml` declares `version = "0.1.0"`. `musicgen_version` appears in every `sample.json`.
+**R-Q4 — Version field.** `pyproject.toml` declares `version = "0.1.0"`. `musicgen_version` appears in every `sample.json`. **[Status: pyproject portion CLOSED 2026-04-18 by Plan 03-01](/home/bidu/musicgen/.planning/phases/03-package-skeleton-sampler-generators-extraction/03-01-SUMMARY.md); `musicgen_version` in `sample.json` remains for Phase 5.]**
 
 ---
 
