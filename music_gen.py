@@ -5,6 +5,7 @@ from midi2audio import FluidSynth
 from datetime import datetime
 from pedalboard import Pedalboard, Compressor, Gain, Chorus, LadderFilter, Phaser, Delay, Reverb
 from pedalboard.io import AudioFile
+import logging
 import time
 import json
 import random
@@ -17,6 +18,8 @@ from timesig import TimeSignatureRegistry
 
 from typing import Tuple, Dict, List, Optional
 import math
+
+logger = logging.getLogger(__name__)
 
 
 def verify_pattern_for_time_signature(chord_pattern: List[str], time_signature: str) -> bool:
@@ -137,7 +140,7 @@ def generate_chord_progression(key, tempo, time_signature, measures, name, part,
     with open(filename, 'wb') as outf:
         mf.writeFile(outf)
     
-    print("\t\t\tChord progression: " + str(chord_progression))
+    logger.debug("Chord progression: %s", chord_progression)
     
     return chord_pattern, filename
 
@@ -231,7 +234,7 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
         remaining_beats -= note_duration
 
     if not validator.validate_layer_duration(possible_durations, time_signature, 'melody'):
-        print("\n\nGenerated melody has invalid timing structure\n")
+        logger.warning("Generated melody has invalid timing structure")
     
     # Add notes to MIDI file
     for i in range(len(melody)):
@@ -240,7 +243,7 @@ def generate_melody(key, tempo, time_signature, measures, name, part, chord_prog
         mf.addNote(track, 0, note, time, note_durations[i], velocity)
         time += note_durations[i]
 
-    print("\t\t\tMelody: " + str(melody))
+    logger.debug("Melody: %s", melody)
 
     # Save MIDI file
     directory = name.split('-')[0]
@@ -335,7 +338,7 @@ def generate_bassline(key, tempo, time_signature, measures, name, part, chord_pr
                 if random.random() < 0.5:
                     bassline[i] = melody[i]
 
-    print("\t\t\tBassline: " + str(bassline))
+    logger.debug("Bassline: %s", bassline)
     # Add notes to MIDI file
     current_time = 0
     for i in range(len(bassline)):
@@ -359,7 +362,7 @@ def generate_bassline(key, tempo, time_signature, measures, name, part, chord_pr
     with open(filename, 'wb') as outf:
         mf.writeFile(outf)
     
-    print("\t\t\tBassline midi file: " + filename)
+    logger.debug("Bassline midi file: %s", filename)
         
     return filename
 
@@ -500,7 +503,7 @@ def save_beat_annotations(name, beat_annotations):
             timestamps = [f"{timestamp:.3f}" for timestamp in annotations]
             f.write(f"{part}: {', '.join(timestamps)}\n")
 
-    print(f"Beat annotations saved to: {output_file}")
+    logger.info("Beat annotations saved to: %s", output_file)
 
 def generate_song_arrangement(structures_file: Optional[str] = None) -> Tuple[List[str], List[str]]:
     """
@@ -540,7 +543,7 @@ def generate_song_arrangement(structures_file: Optional[str] = None) -> Tuple[Li
     except (json.JSONDecodeError, FileNotFoundError, KeyError, ValueError) as e:
         # Default structure in case of error
         default_structure = ['intro', 'verse', 'chorus', 'outro']
-        print(f"Warning: Using default structure due to error: {str(e)}")
+        logger.warning("Using default structure due to error", exc_info=True)
         return list(set(default_structure)), default_structure
     
 def read_instrument_probabilities(file_path):
@@ -654,7 +657,7 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     # See PITFALLS P-A / R-S3: do NOT re-roll the arrangement here; doing so
     # re-rolls RNG and can decouple the rendered audio from the MIDI structure.
     # TODO (later phase): only render and mix the parts that are used in the song arrangement
-    print("Song arrangement: " + str(song_arrangement) + "\n")
+    logger.info("Song arrangement: %s", song_arrangement)
     number_of_parts = len(song_arrangement)
     song_parts = []
     part_layers = {}
@@ -675,10 +678,10 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     soundfonts['melody'] = melody_soundfont
     soundfonts['harmony'] = harmony_soundfont
     soundfonts['bassline'] = bassline_soundfont    
-    print("Beat soundfont: " + beat_soundfont)
-    print("Melody soundfont: " + melody_soundfont)
-    print("Harmony soundfont: " + harmony_soundfont)
-    print("Bassline soundfont: " + bassline_soundfont)
+    logger.info("Beat soundfont: %s", beat_soundfont)
+    logger.info("Melody soundfont: %s", melody_soundfont)
+    logger.info("Harmony soundfont: %s", harmony_soundfont)
+    logger.info("Bassline soundfont: %s", bassline_soundfont)
     beat_board = generate_pedalboard(_cfg.fx_files['beat'])
     melody_board = generate_pedalboard(_cfg.fx_files['melody'])
     harmony_board = generate_pedalboard(_cfg.fx_files['harmony'])
@@ -687,14 +690,14 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     pedalboards['melody'] = pedalboard_info_json(melody_board)
     pedalboards['harmony'] = pedalboard_info_json(harmony_board)
     pedalboards['bassline'] = pedalboard_info_json(bassline_board)
-    print("Beat pedalboard: " + str(beat_board))
-    print("Melody pedalboard: " + str(melody_board))
-    print("Harmony pedalboard: " + str(harmony_board))
-    print("Bassline pedalboard: " + str(bassline_board))
+    logger.debug("Beat pedalboard: %s", beat_board)
+    logger.debug("Melody pedalboard: %s", melody_board)
+    logger.debug("Harmony pedalboard: %s", harmony_board)
+    logger.debug("Bassline pedalboard: %s", bassline_board)
     inst_proba = read_instrument_probabilities(_cfg.inst_probabilities_file)
     levels = {}
     levels = get_levels(_cfg.levels_file)
-    print("Levels: " + str(levels))
+    logger.debug("Levels: %s", levels)
     beat_part_mix = {}
     melody_part_mix = {}
     harmony_part_mix = {}
@@ -709,14 +712,14 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
         melody_part_mix[part] = (random.random() <= melody_proba)
         harmony_part_mix[part] = (random.random() <= harmony_proba)
         bassline_part_mix[part] = (random.random() <= bassline_proba)    
-    print("Mixing song parts...")
+    logger.info("Mixing song parts...")
     song_transitions = []
     song_time = 0
     for part in song_arrangement:
         this_transition = [part, song_time]
         song_transitions.append(this_transition)
         part_counter += 1
-        print("Mixing part: " + part + (' (' + str(part_counter) + ' of ' + str(number_of_parts) + ')'))        
+        logger.info("Mixing part: %s (%s of %s)", part, part_counter, number_of_parts)        
         # Render each MIDI file to an audio file using the chosen soundfont
         beat_wav = 'beat' + "-" + str(part_counter) + "-" + part + ".wav"
         beat_wav = os.path.join(name, beat_wav)
@@ -760,22 +763,22 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
             mix = mix.overlay(beat)
             if 'beat' not in part_layers[part]:
                 part_layers[part].append('beat')
-            print("Beat added to mix: "+part)
+            logger.debug("Beat added to mix: %s", part)
         if melody_part_mix[part]:
             mix = mix.overlay(melody)
             if 'melody' not in part_layers[part]:
                 part_layers[part].append('melody')
-            print("Melody added to mix: "+part)
+            logger.debug("Melody added to mix: %s", part)
         if harmony_part_mix[part]:
             mix = mix.overlay(harmony)  
             if 'harmony' not in part_layers[part]:
                 part_layers[part].append('harmony')         
-            print("Harmony added to mix: "+part)
+            logger.debug("Harmony added to mix: %s", part)
         if bassline_part_mix[part]:
             mix = mix.overlay(bassline)
             if 'bassline' not in part_layers[part]:
                 part_layers[part].append('bassline')
-            print("Bassline added to mix: "+part)
+            logger.debug("Bassline added to mix: %s", part)
         # Save the mixed audio to the output file
         part_mix_file = name + '-' + str(part_counter) + '.wav'
         part_mix_file = os.path.join(name, part_mix_file) 
@@ -795,7 +798,7 @@ def mix_and_save(harm_filename, bass_filename, melo_filename, beat_filename, nam
     song_file_wav = name + '.wav'
     song_file_wav = os.path.join(name, song_file_wav)
     song.export(song_file_wav, format='wav')
-    print("Song saved as: " + song_file_wav)
+    logger.info("Song saved as: %s", song_file_wav)
     # Clean the wav parts
     for part_wav in song_parts:
         os.remove(part_wav)
@@ -899,7 +902,7 @@ def create_song(
     song_name = name
     start_time = time.time()
     
-    print(f"Generating song with swing amount: {swing_amount}")
+    logger.info("Generating song with swing amount: %s", swing_amount)
 
     # Compute arrangement ONCE for the whole song (R-S3 / PITFALLS P-A).
     # Must happen before generate_song_parts so that all downstream RNG draws
@@ -948,12 +951,10 @@ def create_song(
     }
     
     elapsed_time = end_time - start_time
-    print(f'Elapsed time: {elapsed_time:.2f} seconds')
-    print(f'Musicality Analysis:')
-    print(f'Score: {score:.2f}')
-    print('Component Scores:')
-    for component, value in component_scores.items():
-        print(f'{component:>10}: {value:.2f}')
+    logger.info("Elapsed time: %.2f seconds", elapsed_time)
+    logger.info("Musicality analysis:")
+    logger.info("Musicality score: %.2f", score)
+    logger.debug("Component scores: %s", component_scores)
     
     # Saves metadata
     json_file = os.path.join(name, name + '.json')
@@ -976,7 +977,7 @@ def generate_song_parts(
     harm_filename, bass_filename, melo_filename, beat_filename, beat_annotations = {}, {}, {}, {}, {}
 
     for part, measures in song_measures.items():
-        print(f"Generating part: {part} ({measures} measures)")
+        logger.info("Generating part: %s (%s measures)", part, measures)
         name_part = f"{name}-{part}"
         time_signature = song_signatures[part]
 
@@ -1006,7 +1007,7 @@ def generate_song(id: int, cfg: config.Config):
         id: Music id
         cfg: Config instance with all path and override settings
     """
-    print(f"Generating song #{str(id)}")
+    logger.info("Generating song #%s", id)
 
     # Basic musical parameters
     key = generate_random_key()
@@ -1043,6 +1044,11 @@ def generate_song(id: int, cfg: config.Config):
 # Example usage
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
+    # Phase 6: swap to pythonjsonlogger.jsonlogger.JsonFormatter when --json flag arrives
     cfg = config.Config.load()
     for i in range(1):
         generate_song(i, cfg)
