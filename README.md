@@ -37,10 +37,14 @@ A Python-based system for generating synthesized musical pieces for Music Inform
 git clone https://github.com/dobidu/layered_music_gen.git
 ```
 
-2. Install the required Python packages:
+2. Install the package (editable) with its runtime and dev dependencies:
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e '.[dev]'
 ```
+(`requirements.txt` was removed in Phase 3 — `pyproject.toml` is now the
+single authoritative dependency manifest.)
 
 3. Install FluidSynth:
 ```bash
