@@ -88,6 +88,15 @@ Plans:
 
 **Exit criteria:** `pip install -e .` succeeds. `from musicgen.sampler import SongParams` works. Generators run without touching module-level `random`. Old `music_gen.py` still executable for smoke testing.
 
+**Plans:** 5 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Package scaffold + `pyproject.toml` (hatchling, typer>=0.12, dev extras), stub CLI, delete `requirements.txt`/`dev-requirements.txt`. Uses `requires-python=">=3.10"` per RESEARCH Risk #1 (CONTEXT D-13's `>=3.9` is infeasible with typer+hatchling pins). (R-X1, R-Q4)
+- [ ] 03-02-PLAN.md — `git mv enhanced_duration_validator.py` → `src/musicgen/duration_validator.py` (D-10), rewrite the two consuming import sites (`music_gen.py:15`, `tests/test_duration_validator.py:10`). Prerequisite for Wave 2 generator extraction. (R-X1)
+- [ ] 03-03-PLAN.md — Extract sampler (SongParams frozen dataclass + `SongParams.sample` classmethod + 7 free functions + `validate_measures_dict`) into `src/musicgen/sampler.py` with injected `rng: random.Random`. Zero bare `random.*`. Seeded determinism tests + AST static guard. `music_gen.py` shim re-exports sampler symbols; call sites pass `_rng`. (R-X2)
+- [ ] 03-04-PLAN.md — Extract 4 generators into `src/musicgen/generators/{chord,melody,bassline,beat}.py` with injected `rng`. 11 bare-random rewrites. music21 audit comment added to chord/melody/bassline. Per-generator seeded MIDI-byte-equal tests + AST no-bare-random guard. `music_gen.py` shim re-exports generator symbols; call sites pass `_rng`. (R-X3)
+- [ ] 03-05-PLAN.md — Add `tests/test_music21_isolation.py` regression guard (D-24, 3 tests — roman / scale / pitch). Delete `tests/conftest.py` (D-16 — `pyproject.toml pythonpath=["."]` from Plan 03-01 replaces it). Phase-gate verification: ≥349 tests green, full-package AST scan clean, `python music_gen.py` best-effort smoke. (R-X1, R-X2, R-X3)
+
 ---
 
 ## Phase 4: Renderer + mixer + annotator + beats extraction

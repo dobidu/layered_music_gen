@@ -954,22 +954,27 @@ Each currently-top-level `def` that moves MUST have a corresponding `from musicg
 | A5 | Phase 3 DOES NOT need to add `test_package_install.py` — D-17 marks it optional | Validation Architecture / Wave 0 | LOW — "optional" is explicit in CONTEXT.md; planner may include as slow-marked CI nice-to-have |
 | A6 | No stakeholder is actively running this project on Python 3.9 | Risk #1 | LOW — no CI config for 3.9, no Dockerfile pinned to 3.9, project venv is 3.12. Mitigation: surface in DISCUSSION-LOG for explicit user confirmation before finalizing `requires-python` |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three open questions were answered during planning; each `RESOLVED:` marker below cites the implementing plan/task. Preserved for audit trail per `dimension 11 (Research Resolution)`.
 
 1. **Should `requires-python` be `>=3.9` or `>=3.10`?**
    - What we know: CONTEXT.md D-13 pins `>=3.9`; typer>=0.12 and hatchling>=1.28 both require 3.10+.
    - What's unclear: whether D-13's `>=3.9` was a considered decision or an auto-mode default.
    - Recommendation: include a plan task that tests `pip install -e .` on a fresh 3.9 venv. If it fails (predicted yes), bump to `>=3.10` and log the change. If a stakeholder later objects, it's reversible.
+   - **RESOLVED:** `>=3.10` per Plan 03-01 Task 1 (Risk #1). typer>=0.12 and hatchling>=1.28 require 3.10+, and there is no stakeholder on Python 3.9 (A6). D-13's `>=3.9` was overridden with explicit justification logged in 03-01-SUMMARY.md.
 
 2. **Does `tests/conftest.py` deletion actually work without `pythonpath` fallback?**
    - What we know: today's conftest.py's shim is explicitly flagged for deletion; editable install should expose `src/musicgen/`.
    - What's unclear: whether root-level `config.py` / `timesig.py` resolve without extra configuration.
    - Recommendation: add `pythonpath = ["."]` to `[tool.pytest.ini_options]` as a belt-and-suspenders measure. Zero cost, eliminates the empirical risk — preferred over adding a `conftest.py` fallback.
+   - **RESOLVED:** Plan 03-01 adds `pythonpath = ["."]` to `[tool.pytest.ini_options]` in `pyproject.toml`; Plan 03-05 deletes `tests/conftest.py` only **after** that precondition is verified. The two-step sequencing eliminates the empirical risk entirely (belt-and-suspenders).
 
 3. **Should `SongParams.sample` accept `cfg=None` with a runtime `config.Config()` fallback?**
    - What we know: Plan 02-01 established the "cfg=None with runtime fallback" pattern across the project (Phase 2 D-02 for generators).
    - What's unclear: whether Phase 3 should continue the pattern in the sampler since Phase 5 will thread the real Config anyway.
    - Recommendation: follow the existing pattern (`cfg: Optional[config.Config] = None` with `_cfg = cfg if cfg is not None else config.Config()` fallback inside the method). Consistent with `generate_beat` today.
+   - **RESOLVED:** Plan 03-03 Task 1 applies the Phase 2 `cfg=None` + runtime fallback pattern in `SongParams.sample` (see `<interfaces>` skeleton: `_cfg = cfg if cfg is not None else config.Config()`). Consistent with `generate_beat` today; Phase 5 will thread the real Config without breaking the signature.
 
 ## Environment Availability
 
