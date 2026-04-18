@@ -25,7 +25,7 @@ Inputs: `.planning/PROJECT.md`, `.planning/codebase/*`, `.planning/research/*`.
 
 **R-S6 — Time-signature registry.** Consolidate time-signature logic into one registry module. Today it is scattered across `verify_pattern_for_time_signature` (`music_gen.py:22`), `verify_beat_pattern` (`:42`), `calculate_measures_for_time_signature` (`:54`), `generate_random_time_signature`, and `enhanced_duration_validator.DurationValidator`. Adding a signature must touch one location. **Must land before generator extraction.**
 
-**R-S7 — Structured logging.** Partially complete (Plan 01-03): `musicality_score.py` exception handlers narrowed + `logger.exception`. `print()` migration in `music_gen.py` deferred to Phase 2 per ROADMAP scope. Replace all 32+ `print()` calls in `music_gen.py` with `logging` calls using the already-installed `python-json-logger`. Fix the bare `except:` blocks in `musicality_score.py:66, 94, 173, 205, 239` — narrow exceptions + `logger.exception`.
+**R-S7 — Structured logging.** ✓ Complete (Plan 02-03). All 32 `print()` calls in `music_gen.py` replaced with semantically leveled `logging` calls (16 DEBUG, 14 INFO, 2 WARNING) per D-07. Module-level `logger = logging.getLogger(__name__)` added. `logging.basicConfig` placed inside `__main__` guard only. AST-scan and import-side-effect tests confirm the migration is complete.
 
 **R-S8 — Dead code removal.** ✓ Complete (Plan 01-03). Remove unused imports (`glob`, `Pool`, `cpu_count`, `time`) and unused variables (`beat_annotations`, `ha`, `ba`, `me`, `be`, `now`) from `music_gen.py`. Also remove the `uuid` PyPI entry from `requirements.txt` (stdlib in Python 3).
 

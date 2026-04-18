@@ -63,7 +63,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Config module with three-layer override precedence (CLI > env > defaults), path migration from music_gen.py, soundfont pool detection, and Wave 0 test skeletons. (R-S5, R-S9) — completed 2026-04-18
 - [x] 02-02-PLAN.md — TimeSignatureRegistry in timesig.py, thin wrappers in music_gen.py, DurationValidator delegation, and full registry test suite. (R-S6) — completed 2026-04-18
-- [ ] 02-03-PLAN.md — Replace all 32 print() calls with semantically leveled logging, add basicConfig in __main__ guard, and AST-scan regression tests. (R-S7)
+- [x] 02-03-PLAN.md — Replace all 32 print() calls with semantically leveled logging, add basicConfig in __main__ guard, and AST-scan regression tests. (R-S7) — completed 2026-04-18
 
 ---
 
