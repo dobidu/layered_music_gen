@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Phase 02 Complete
-last_updated: "2026-04-18T16:12:38Z"
+status: Phase 03 Context Gathered
+last_updated: "2026-04-18T17:05:00Z"
 progress:
   total_phases: 7
   completed_phases: 2
@@ -19,18 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 **Core value:** Every generated sample is a complete, reproducible, fully-labeled training example.
-**Current focus:** Phase 02 — stabilize-ii-config-time-signature-registry-logging
+**Current focus:** Phase 03 — package-skeleton-sampler-generators-extraction (context gathered, ready for planning)
 
 ## Current position
 
-Phase: 02 (stabilize-ii-config-time-signature-registry-logging) — COMPLETE
-Plan: 3 of 3
+Phase: 03 (package-skeleton-sampler-generators-extraction) — CONTEXT GATHERED
+Plan: 0 of N (planning not yet started)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: 02-stabilize-ii-config-time-signature-registry-logging — COMPLETE
-- Current plan: 02-03 complete — print→logging migration completed 2026-04-18
-- Progress: 7 of 7 plans complete (01-01, 01-02, 01-03, 01-04, 02-01, 02-02, 02-03) — Phase 02 complete (3/3)
+- Active phase: 03-package-skeleton-sampler-generators-extraction — context captured 2026-04-18 (auto mode)
+- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-CONTEXT.md
+- Progress: Phase 02 complete (7 of 7 plans: 01-01, 01-02, 01-03, 01-04, 02-01, 02-02, 02-03); Phase 03 context ready for /gsd-plan-phase 3
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -68,9 +68,11 @@ Plan: 3 of 3
 
 - **2026-04-18 (Plan 02-03):** All 32 print() calls in music_gen.py replaced with semantically leveled logging calls (16 DEBUG, 14 INFO, 2 WARNING) per D-07. Module-level logger = logging.getLogger(__name__) added. logging.basicConfig(INFO) added inside __main__ guard only (T-02-06 mitigated). Component scores loop (3 prints) aggregated into single logger.debug call (Pitfall 8). except-block warning uses exc_info=True. 6 AST-scan + import-guard tests added; full suite 309 passed. R-S7 closed.
 
+- **2026-04-18 (Phase 03 CONTEXT, auto mode):** Phase 3 context captured with 25 decisions across 10 gray areas, all selected via --auto recommended defaults. Key locked decisions: src/ layout with `src/musicgen/` package (D-01/02); `music_gen.py` becomes a thin re-import shim to preserve the "old music_gen.py still executable for smoke testing" exit criterion (D-04/05); every extracted function takes an explicit `rng: random.Random` parameter with zero bare `random.*` in extracted code (D-07/08) — Phase 5 will build the RNG hierarchy on these ready-made signatures; `enhanced_duration_validator.py` moves to `src/musicgen/duration_validator.py` (D-10), `musicality_score.py` stays at root for Phase 4 (D-11); `pyproject.toml` is the single authoritative dependency manifest — delete `requirements.txt` and `dev-requirements.txt` (D-13/14); test imports rewrite to `musicgen.*` and delete `tests/conftest.py` sys.path shim (D-15/16); `SongParams` is a frozen dataclass embedding arrangement + per-part signatures + measures (D-20); music21 global-RNG audit lands this phase (D-23/24) to clear a Phase 5 blocker. `config.py` and `timesig.py` stay at repo root this phase (D-03) — will move in Phase 5. Phases 3 and 4 run serially, not parallel, so Phase 4 gets a stable package surface (D-25).
+
 ## Next command
 
-Phase 02 complete. Phase 03 (package skeleton + sampler + generators extraction) and Phase 04 (renderer + mixer + annotator + beats extraction) may now proceed in parallel.
+Phase 03 context gathered. Auto-advancing to `/gsd-plan-phase 3 --auto` to generate PLAN.md(s) and execute.
 
 ---
-*Last updated: 2026-04-18 after Plan 02-03 completion*
+*Last updated: 2026-04-18 after Phase 03 context capture (auto mode)*
