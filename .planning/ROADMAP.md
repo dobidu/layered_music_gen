@@ -58,6 +58,13 @@ Plans:
 
 **Exit criteria:** Adding a new time signature would require editing exactly one file. No grep hit for `sf/beat` / `*_fx.json` literals outside `config.py`.
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Config module with three-layer override precedence (CLI > env > defaults), path migration from music_gen.py, soundfont pool detection, and Wave 0 test skeletons. (R-S5, R-S9)
+- [ ] 02-02-PLAN.md — TimeSignatureRegistry in timesig.py, thin wrappers in music_gen.py, DurationValidator delegation, and full registry test suite. (R-S6)
+- [ ] 02-03-PLAN.md — Replace all 32 print() calls with semantically leveled logging, add basicConfig in __main__ guard, and AST-scan regression tests. (R-S7)
+
 ---
 
 ## Phase 3: Package skeleton + sampler + generators extraction
@@ -177,23 +184,23 @@ Plans:
 
 ```
 Phase 1 (Stabilize I)
-    │
-    ▼
+    |
+    v
 Phase 2 (Stabilize II: config + timesig + logging)
-    │
-    ├──────────────────────┐
-    ▼                      ▼
+    |
+    +----------------------+
+    v                      v
 Phase 3 (Sampler +      Phase 4 (Renderer +
 generators extraction)  mixer + annotator + beats)
-    │                      │
-    └──────────┬───────────┘
-               ▼
+    |                      |
+    +----------+-----------+
+               v
 Phase 5 (Writer + manifest + seeds + determinism)
-               │
-               ▼
+               |
+               v
 Phase 6 (FluidSynth calibration + batch + CLI + resume)
-               │
-               ▼
+               |
+               v
 Phase 7 (Ship v0.1)
 ```
 
@@ -224,7 +231,7 @@ Every requirement in `REQUIREMENTS.md` maps to at least one phase.
 | Risk | Mitigation | Phase |
 |---|---|---|
 | FluidSynth cross-version non-determinism (P-1) | Pin binary; SHA regression test; document binary-dependent contract | 5, 7 |
-| Sum-of-stems ≠ mix after gain/pan fix (P-2) | Assertion + failure mode in writer | 5 |
+| Sum-of-stems != mix after gain/pan fix (P-2) | Assertion + failure mode in writer | 5 |
 | Beat annotation drift from swing + pre-roll (P-3, P-8) | MIDI-derived beats; calibrate pre-roll | 4, 6 |
 | Multiprocessing RNG leakage (P-4) | Per-worker seeding on entry | 5, 6 |
 | Narrow soundfont pool bias (P-5) | Detect in stabilize; broaden in v0.2 | 2 (detect) |
