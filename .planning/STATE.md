@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Executing Phase 03
-last_updated: "2026-04-18T20:17:53Z"
+last_updated: "2026-04-18T20:25:18Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 12
-  completed_plans: 8
-  percent: 67
+  completed_plans: 9
+  percent: 75
 ---
 
 # STATE
@@ -24,13 +24,13 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 03 (package-skeleton-sampler-generators-extraction) — EXECUTING
-Plan: 2 of 5 (Plan 03-01 complete)
+Plan: 3 of 5 (Plans 03-01 + 03-02 complete)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: 03-package-skeleton-sampler-generators-extraction — Wave 1 (Plan 03-01) executed 2026-04-18
-- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-02-PLAN.md
-- Progress: Phase 02 complete; Phase 03 Wave 1 complete (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton + editable install green, 309 tests still pass). Ready for Wave 2 (Plan 03-02 — music21 isolation regression tests).
+- Active phase: 03-package-skeleton-sampler-generators-extraction — Waves 1–2 executed 2026-04-18
+- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-03-PLAN.md
+- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete, 309 tests still pass, baseline preserved. Ready for Wave 3 (Plan 03-03 — sampler extraction with injected rng).
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -72,9 +72,11 @@ Plan: 2 of 5 (Plan 03-01 complete)
 
 - **2026-04-18 (Plan 03-01):** `pyproject.toml` (hatchling + 14 runtime deps + typer>=0.12 + pytest/cov/xdist dev extras) landed at repo root; `src/musicgen/` skeleton created (empty `__init__.py`, `__main__.py` delegator, `cli.py` typer stub with `info` command). `pip install -e '.[dev]'` now succeeds; `musicgen --help` and `python -m musicgen --help` both exit 0. `requirements.txt` + `dev-requirements.txt` deleted — pyproject.toml is the sole dep manifest. Two Rule 1/2 auto-fixes during execution: (a) pedalboard floor relaxed from `>=1.0.0` to `>=0.9.0` — no 1.x release exists on PyPI (this was a pre-existing bug in requirements.txt that blocked the editable install); (b) README.md Installation step updated from `pip install -r requirements.txt` to `pip install -e '.[dev]'`. Applied the RESEARCH.md Risk #1 override: `requires-python = ">=3.10"` (CONTEXT.md D-13's `">=3.9"` infeasible — typer>=0.12 and hatchling need 3.10+; inline comment preserves traceability). `[tool.pytest.ini_options] pythonpath = ["."]` wired so root `config.py`/`timesig.py` remain importable when Plan 03-05 deletes `tests/conftest.py`. Baseline 309 tests still pass. R-X1 closed; R-Q4 (version field) closed.
 
+- **2026-04-18 (Plan 03-02):** `git mv enhanced_duration_validator.py src/musicgen/duration_validator.py` — 100% rename detection (`R100` in git), `git log --follow` traces history back through Plan 02-02 delegate-to-registry commit (1253a50) and the initial repo upload (94c19a0). Two live import sites rewritten to `from musicgen.duration_validator import DurationValidator, NoteValue` (music_gen.py:15, tests/test_duration_validator.py:10). Four docstring/comment references auto-fixed under Rule 2 (the acceptance criterion requires `grep enhanced_duration_validator --include=*.py` to return zero hits — pure comment updates, no logic change): timesig.py (2 comments), tests/test_timesig_registry.py:300, tests/conftest.py:12, plus 2 doc-comments inside tests/test_duration_validator.py. Old path `enhanced_duration_validator.py` now raises `ModuleNotFoundError` (no back-compat shim per D-10). Moved file is byte-identical to the original (no logging refactor in this phase — Pattern D preserves). Stale `__pycache__/enhanced_duration_validator.cpython-312.pyc` remains — documented as filesystem surprise for Plan 03-05's sweep (harmless; Python ignores .pyc without matching .py). Baseline 309 tests still pass (49 in tests/test_duration_validator.py; plan expected 37, actual count is higher due to parametrized classes). R-X1 duration_validator sub-slice closed.
+
 ## Next command
 
-Phase 03 Wave 1 complete. Next: `/gsd-execute-phase 3 --resume` → Wave 2 (Plan 03-02 — music21 global-RNG audit + isolation regression tests, D-23/D-24).
+Phase 03 Waves 1–2 complete. Next: `/gsd-execute-phase 3 --resume` → Wave 3 (Plan 03-03 — sampler extraction into `src/musicgen/sampler.py` with SongParams frozen dataclass and injected `rng: random.Random`, R-X2).
 
 ---
-*Last updated: 2026-04-18 after Plan 03-01 (package skeleton + pyproject.toml) execution.*
+*Last updated: 2026-04-18 after Plan 03-02 (git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) execution.*
