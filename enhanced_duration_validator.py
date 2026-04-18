@@ -37,52 +37,23 @@ class DurationValidator:
         self._time_signature_cache: Dict[str, TimeSignatureInfo] = {}
     
     def _analyze_time_signature(self, time_signature: str) -> TimeSignatureInfo:
-        """Analisa uma assinatura de tempo e retorna suas características."""
+        """Analyzes a time signature by delegating to TimeSignatureRegistry.
+        Returns legacy TimeSignatureInfo shape for compatibility with existing methods."""
         if time_signature in self._time_signature_cache:
             return self._time_signature_cache[time_signature]
-            
-        numerator, denominator = map(int, time_signature.split('/'))
-        is_compound = denominator == 8 and numerator % 3 == 0
-        beats_per_measure = numerator / 3 if is_compound else numerator
-        
-        # Define durações válidas baseadas no tipo de compasso
-        if is_compound:  # 6/8, 9/8, 12/8
-            valid_durations = {
-                NoteValue.DOTTED_QUARTER.value,
-                NoteValue.QUARTER.value,
-                NoteValue.DOTTED_EIGHTH.value,
-                NoteValue.EIGHTH.value,
-                NoteValue.SIXTEENTH.value
-            }
-            min_duration = NoteValue.SIXTEENTH.value
-            max_duration = NoteValue.DOTTED_QUARTER.value * (numerator / 3)
-            primary_division = 3.0
-        else:  # 2/4, 3/4, 4/4
-            valid_durations = {
-                NoteValue.WHOLE.value,
-                NoteValue.HALF.value,
-                NoteValue.QUARTER.value,
-                NoteValue.EIGHTH.value,
-                NoteValue.SIXTEENTH.value,
-                NoteValue.DOTTED_HALF.value,
-                NoteValue.DOTTED_QUARTER.value,
-                NoteValue.DOTTED_EIGHTH.value
-            }
-            min_duration = NoteValue.SIXTEENTH.value
-            max_duration = float(numerator)
-            primary_division = 2.0
-        
+
+        from timesig import TimeSignatureRegistry
+        spec = TimeSignatureRegistry.lookup(time_signature)
         info = TimeSignatureInfo(
-            numerator=numerator,
-            denominator=denominator,
-            is_compound=is_compound,
-            valid_durations=valid_durations,
-            min_duration=min_duration,
-            max_duration=max_duration,
-            primary_division=primary_division,
-            beats_per_measure=beats_per_measure
+            numerator=spec.numerator,
+            denominator=spec.denominator,
+            is_compound=spec.is_compound,
+            valid_durations=set(spec.valid_durations),  # Set, not FrozenSet — legacy shape
+            min_duration=spec.min_duration,
+            max_duration=spec.max_duration,
+            primary_division=spec.primary_division,
+            beats_per_measure=spec.beats_per_measure,
         )
-        
         self._time_signature_cache[time_signature] = info
         return info
     

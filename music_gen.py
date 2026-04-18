@@ -13,158 +13,56 @@ import uuid
 import musicality_score
 from enhanced_duration_validator import DurationValidator, NoteValue
 import config
+from timesig import TimeSignatureRegistry
 
 from typing import Tuple, Dict, List, Optional
 import math
 
 
 def verify_pattern_for_time_signature(chord_pattern: List[str], time_signature: str) -> bool:
-    """
-    Checks if the chord pattern is appropriate for the time signature.
-    """
-    numerator, denominator = map(int, time_signature.split('/'))
-    
-    # Para compassos compostos (6/8, 12/8)
-    if denominator == 8 and numerator % 3 == 0:
-        return len(chord_pattern) in [2, 3, 6]  # Permite divisões apropriadas
-    # Para compassos simples
-    elif numerator == 4:
-        return len(chord_pattern) in [1, 2, 4]  # Permite divisões em 4
-    elif numerator == 3:
-        return len(chord_pattern) in [1, 3]     # Permite divisões em 3
-    elif numerator == 2:
-        return len(chord_pattern) in [1, 2]     # Permite divisões em 2
-        
-    return True
+    """Checks if the chord pattern is appropriate for the time signature.
+    Delegates to TimeSignatureRegistry per R-S6."""
+    return TimeSignatureRegistry.lookup(time_signature).verify_chord_pattern_length(len(chord_pattern))
 
 
 def verify_beat_pattern(pattern: List[int], time_signature: str) -> bool:
-    """
-    Checks if the beat pattern matches the time signature.
-    """
-    numerator, denominator = map(int, time_signature.split('/'))
-    
-    # Checks if the pattern length matches the signature
-    if denominator == 8 and numerator % 3 == 0:
-        return len(pattern) == numerator  # 6 beats - 6/8, etc.
-    else:
-        return len(pattern) == numerator  # 4 beats - 4/4, etc.
+    """Checks if the beat pattern matches the time signature.
+    Delegates to TimeSignatureRegistry per R-S6."""
+    return TimeSignatureRegistry.lookup(time_signature).verify_beat_pattern_length(len(pattern))
 
 def calculate_measures_for_time_signature(base_length: int, time_signature: str) -> int:
-    # TODO: couple improved compass control system
-    numerator, denominator = map(int, time_signature.split('/'))
-    
-    if denominator == 8 and numerator % 3 == 0:
-        return base_length * 2  # Doubling for compound measures
-    elif numerator == 2:
-        return base_length * 2  # Doubling for 2/4
-    elif numerator == 3:
-        return int(base_length * 4/3)  # Adjusts for 3/4        
-    return base_length  # 4/4 keeps original
+    """Delegates to TimeSignatureRegistry per R-S6."""
+    return TimeSignatureRegistry.lookup(time_signature).measures_for(base_length)
 
 def validate_measures(measures: Dict[str, int], signatures: Dict[str, str]) -> bool:
-    """
-    Validate the number of measures for each part based on time signature.
-    """
+    """Validate the number of measures for each part based on time signature.
+    Cross-signature function — iterates parts and delegates per-sig validation."""
     for part, measure_count in measures.items():
-        time_sig = signatures[part]
-        numerator, denominator = map(int, time_sig.split('/'))
-        
-        if denominator == 8 and numerator % 3 == 0:
-            if measure_count % 2 != 0:
-                return False
-        elif numerator == 2 and measure_count % 2 != 0:
+        spec = TimeSignatureRegistry.lookup(signatures[part])
+        if not spec.measure_count_valid(measure_count):
             return False
-    
     return True
 
 def get_midi_time_signature_values(time_signature: str) -> Tuple[int, int]:
-    """
-    Convert musical time signature to MIDI format values.
-    For example:
-        "4/4" -> (4, 2)  # denominator 4 = 2^2
-        "3/4" -> (3, 2)  # denominator 4 = 2^2
-        "6/8" -> (6, 3)  # denominator 8 = 2^3
-    """
-    numerator, denominator = map(int, time_signature.split('/'))
-    # Convert denominator to power of 2
-    midi_denominator = {
-        1: 0,  # 2^0
-        2: 1,  # 2^1
-        4: 2,  # 2^2
-        8: 3,  # 2^3
-        16: 4, # 2^4
-        32: 5  # 2^5
-    }.get(denominator)
-    
-    if midi_denominator is None:
-        raise ValueError(f"Unsupported time signature denominator: {denominator}")
-        
-    return numerator, midi_denominator
+    """Convert musical time signature to MIDI format values.
+    Delegates to TimeSignatureRegistry per R-S6."""
+    spec = TimeSignatureRegistry.lookup(time_signature)
+    return spec.numerator, spec.midi_denominator_power
 
 def get_note_duration(time_signature: str) -> float:
-    """
-    Calculate base note duration for given time signature.
-    Returns duration in beats.
-    """
-    numerator, denominator = map(int, time_signature.split('/'))
-    if denominator == 8 and numerator % 3 == 0:
-        # Compound meter (6/8, 9/8, 12/8)
-        return 0.5  # eighth note = 0.5 beat
-    else:
-        # Simple meter (2/4, 3/4, 4/4)
-        return 1.0  # quarter note = 1 beat
+    """Calculate base note duration for given time signature.
+    Delegates to TimeSignatureRegistry per R-S6."""
+    return TimeSignatureRegistry.lookup(time_signature).primary_beat_duration
 
 def get_note_durations(time_signature: str) -> dict:
-    """
-    Calculate note durations for different note values based on time signature.
-    Returns dictionary with standard note durations.
-    """
-    numerator, denominator = map(int, time_signature.split('/'))
-    
-    if denominator == 8 and numerator % 3 == 0:
-        # Compound meter (6/8, 9/8, 12/8)
-        return {
-            'whole': 6.0,          # 6 eighth notes
-            'half': 3.0,           # 3 eighth notes (dotted quarter)
-            'quarter': 1.5,        # 1.5 eighth notes (dotted eighth)
-            'eighth': 0.5,         # 1 eighth note
-            'sixteenth': 0.25      # 1 sixteenth note
-        }
-    else:
-        # Simple meter (2/4, 3/4, 4/4)
-        return {
-            'whole': 4.0,          # 4 quarter notes
-            'half': 2.0,           # 2 quarter notes
-            'quarter': 1.0,        # 1 quarter note
-            'eighth': 0.5,         # 1 eighth note
-            'sixteenth': 0.25      # 1 sixteenth note
-        }
+    """Calculate note durations for different note values.
+    Delegates to TimeSignatureRegistry per R-S6."""
+    return TimeSignatureRegistry.lookup(time_signature).note_duration_map()
 
 def get_melody_durations(time_signature: str) -> list:
-    """
-    Get appropriate note durations for melody based on time signature.
-    """
-    numerator, denominator = map(int, time_signature.split('/'))
-    
-    if denominator == 8 and numerator % 3 == 0:  # Compassos compostos (6/8, 12/8)
-        return [
-            0.5,  # Eighth note (basic unit)
-            1.5,  # Dotted eighth note (group of 3)
-            3.0   # Dotted quarter note (full group)
-        ]
-    elif numerator == 3:  # 3/4
-        return [
-            0.5,  # Eighth note
-            1.0,  # Quarter note
-            1.5   # Dotted quarter note
-        ]
-    else:  # 2/4, 4/4
-        return [
-            0.5,  # Eighth note
-            1.0,  # Quarter note
-            2.0   # Half note
-        ]
+    """Get appropriate note durations for melody.
+    Delegates to TimeSignatureRegistry per R-S6."""
+    return list(TimeSignatureRegistry.lookup(time_signature).melody_duration_candidates)
 
 def generate_chord_progression(key, tempo, time_signature, measures, name, part, pattern_file):    
     """
@@ -934,46 +832,16 @@ def generate_random_tempo():
     return random.randint(*tempo_ranges[-1][1:])
 
 def generate_random_time_signature():
-    """
-    Generates a random time signature based on weighted probabilities.
-    The probabilities are based on the frequency of use in popular music
-    """
-    time_signature_ranges = [
-        (0.50, '4/4'),  # More commom (50% of the dataset will be 4/4)
-        (0.65, '3/4'),  # Less common (15% of the dataset will be 3/4)
-        (0.75, '2/4'),  # Less common (10% of the dataset will be 2/4)
-        (0.85, '6/8'),  # Less common (10% of the dataset will be 6/8)
-        (0.90, '12/8'), # Less common (5% of the dataset will be 12/8)
-        (0.95, '7/8'),  # Less common (5% of the dataset will be 7/8)
-        (1.00, '5/4')   # Less common (5% of the dataset will be 5/4)
-    ]
-    
-    dice = random.random()
-    for prob, time_signature in time_signature_ranges:
-        if dice < prob:
-            return time_signature
+    """Generates a random time signature based on weighted probabilities.
+    Delegates to TimeSignatureRegistry.sample_random() per R-S6.
+    Fixes Pitfall 5: uses random.choices instead of threshold-loop — no missing-return bug."""
+    return TimeSignatureRegistry.sample_random()
 
 def time_signature_alternative(base_time_signature):
-    """
-    Generates a significant variation of the given time signature.
-    Variations are based on common musical relationships and natural transitions.
-    """
-    variations = {
-        "4/4": ["2/4", "3/4", "6/8", "12/8"],     
-        "3/4": ["6/8", "4/4", "2/4", "12/8"],     
-        "2/4": ["4/4", "6/8", "3/4"],             
-        "6/8": ["12/8", "3/4", "4/4", "2/4"],     
-        "12/8": ["6/8", "4/4", "3/4"],            
-        "7/8": ["4/4", "6/8", "5/4"],             
-        "5/4": ["4/4", "7/8", "3/4"]
-    }
-
-    # Returns a random variation if available
-    if base_time_signature in variations:
-        return random.choice(variations[base_time_signature])
-    
-    # Fallback to 4/4 if the time signature is not recognized
-    return "4/4"
+    """Generates a variation of the given time signature.
+    Delegates to TimeSignatureRegistry per R-S6."""
+    spec = TimeSignatureRegistry.lookup(base_time_signature)
+    return random.choice(spec.alternatives) if spec.alternatives else "4/4"
 
 def generate_song_measures(time_signature: str, time_signature_variation: float) -> Tuple[Dict[str, int], Dict[str, str]]:
     """
