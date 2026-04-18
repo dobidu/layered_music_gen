@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Executing Phase 03
-last_updated: "2026-04-18T20:25:18Z"
+last_updated: "2026-04-18T20:36:30Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 12
-  completed_plans: 9
-  percent: 75
+  completed_plans: 10
+  percent: 83
 ---
 
 # STATE
@@ -24,13 +24,13 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 03 (package-skeleton-sampler-generators-extraction) — EXECUTING
-Plan: 3 of 5 (Plans 03-01 + 03-02 complete)
+Plan: 4 of 5 (Plans 03-01 + 03-02 + 03-03 complete)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: 03-package-skeleton-sampler-generators-extraction — Waves 1–2 executed 2026-04-18
-- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-03-PLAN.md
-- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete, 309 tests still pass, baseline preserved. Ready for Wave 3 (Plan 03-03 — sampler extraction with injected rng).
+- Active phase: 03-package-skeleton-sampler-generators-extraction — Waves 1–3 executed 2026-04-18
+- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-04-PLAN.md (next)
+- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete; Phase 03 Wave 3 (Plan 03-03 — sampler extraction into `src/musicgen/sampler.py` with SongParams frozen dataclass + rng injection) complete, 342 tests pass (309 baseline + 33 new sampler tests), R-X2 closed. Ready for Wave 4 (Plan 03-04 — generators extraction, R-X3).
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -56,7 +56,7 @@ Plan: 3 of 5 (Plans 03-01 + 03-02 complete)
 
 ## Outstanding infra issue
 
-- Git identity is not configured in this repo. All planning documents are written to disk but uncommitted. User must run `git config user.email` / `user.name` (or set them globally) before the GSD commit helper can commit. Files currently uncommitted: `.planning/codebase/*` (7 files), `.planning/PROJECT.md`, `.planning/config.json`, `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`, `.planning/research/*` (5 files), `.planning/STATE.md`.
+- None. Git identity is now configured (`user.email=bidu@ci.ufpb.br`, `user.name=Carlos Eduardo Batista`); Plans 03-01, 03-02, and 03-03 all committed cleanly via the GSD commit helper. Prior planning-document commits landed in Plans 02-01/02-02/02-03 onward.
 
 ## Recent decisions
 
@@ -74,9 +74,11 @@ Plan: 3 of 5 (Plans 03-01 + 03-02 complete)
 
 - **2026-04-18 (Plan 03-02):** `git mv enhanced_duration_validator.py src/musicgen/duration_validator.py` — 100% rename detection (`R100` in git), `git log --follow` traces history back through Plan 02-02 delegate-to-registry commit (1253a50) and the initial repo upload (94c19a0). Two live import sites rewritten to `from musicgen.duration_validator import DurationValidator, NoteValue` (music_gen.py:15, tests/test_duration_validator.py:10). Four docstring/comment references auto-fixed under Rule 2 (the acceptance criterion requires `grep enhanced_duration_validator --include=*.py` to return zero hits — pure comment updates, no logic change): timesig.py (2 comments), tests/test_timesig_registry.py:300, tests/conftest.py:12, plus 2 doc-comments inside tests/test_duration_validator.py. Old path `enhanced_duration_validator.py` now raises `ModuleNotFoundError` (no back-compat shim per D-10). Moved file is byte-identical to the original (no logging refactor in this phase — Pattern D preserves). Stale `__pycache__/enhanced_duration_validator.cpython-312.pyc` remains — documented as filesystem surprise for Plan 03-05's sweep (harmless; Python ignores .pyc without matching .py). Baseline 309 tests still pass (49 in tests/test_duration_validator.py; plan expected 37, actual count is higher due to parametrized classes). R-X1 duration_validator sub-slice closed.
 
+- **2026-04-18 (Plan 03-03):** All 9 sampler symbols extracted to `src/musicgen/sampler.py` (293 lines): SongParams @dataclass(frozen=True) with 9 fields (D-20) + SongParams.sample classmethod builder (D-21) + 7 rng-aware free functions + validate_measures_dict. RNG draw order inside SongParams.sample preserved verbatim from pre-refactor generate_song (key → tempo → time_sig_base → swing → arrangement → loop(measures)) per RESEARCH Risk #2 — this is Phase 5's golden determinism baseline. AST static guard (`tests/test_sampler.py::test_no_bare_random_in_sampler`) proves zero bare `random.*` in sampler.py (25 call sites rewritten to `rng.*`; `random.Random` constructor/type references permitted). 33 new seeded-determinism tests across 3 test classes; full suite 309 → 342 passing. `music_gen.py` rewritten as shim (net -117 lines): 8 inline defs deleted, 9 symbols re-imported from `musicgen.sampler`, `_rng = random.Random()` threaded through 6 call sites (1 in create_song, 5 in generate_song), `validate_measures = validate_measures_dict` back-compat alias preserves legacy call-site compatibility (D-08). Kept intact per D-05/D-06: mix_and_save, create_song outer, generate_song outer, generate_song_parts, generate_pedalboard, apply_fx_to_layer, create_effect, soundfont/levels helpers, __main__ guard, 10 time-sig wrappers. 19 `random.*` call sites remain in music_gen.py inside generator-layer and mix-layer functions — Phase 4 scope per RESEARCH Risk #5 (NOT rewritten this phase). Smoke test `python music_gen.py` reaches mix_and_save before failing on environmental ffmpeg/soundfont absence — confirms sampler layer wiring works end-to-end. Two plan-spec grep observations filed (acceptance `grep -c "^def generate_" >= 7` is off-by-one; `\(_rng` pattern undercounts rng-last signatures) — no code deviations. R-X2 closed.
+
 ## Next command
 
-Phase 03 Waves 1–2 complete. Next: `/gsd-execute-phase 3 --resume` → Wave 3 (Plan 03-03 — sampler extraction into `src/musicgen/sampler.py` with SongParams frozen dataclass and injected `rng: random.Random`, R-X2).
+Phase 03 Waves 1–3 complete. Next: `/gsd-execute-phase 3 --resume` → Wave 4 (Plan 03-04 — generators extraction into `src/musicgen/generators/{chord,melody,bassline,beat}.py` with injected `rng`, R-X3).
 
 ---
-*Last updated: 2026-04-18 after Plan 03-02 (git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) execution.*
+*Last updated: 2026-04-18 after Plan 03-03 (sampler extraction into src/musicgen/sampler.py with SongParams frozen dataclass + rng injection, R-X2 closed) execution.*
