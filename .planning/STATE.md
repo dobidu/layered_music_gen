@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Executing Phase 02
-last_updated: "2026-04-18T16:36:25Z"
+last_updated: "2026-04-18T16:06:00Z"
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # STATE
@@ -29,8 +29,8 @@ Plan: 2 of 3
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
 - Active phase: 02-stabilize-ii-config-time-signature-registry-logging
-- Current plan: 02-01 complete — config module and path migration completed 2026-04-18
-- Progress: 5 of 7 plans complete (01-01, 01-02, 01-03, 01-04, 02-01) — Phase 02 in progress (1/3 done)
+- Current plan: 02-02 complete — timesig registry completed 2026-04-18
+- Progress: 6 of 7 plans complete (01-01, 01-02, 01-03, 01-04, 02-01, 02-02) — Phase 02 in progress (2/3 done)
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -64,10 +64,11 @@ Plan: 2 of 3
 - **2026-04-08 (Plan 01-03):** music21 symbols narrowed to `{roman, scale, pitch}` (verified by grep). `musicality_score.py` exception handlers narrowed to `(ValueError, RuntimeError, IndexError, FloatingPointError)` for analysis methods, `(FileNotFoundError, OSError, ValueError, RuntimeError)` for the outer file handler; all use `logger.exception(...)`. Kept `import time`/`import uuid` (still used; `uuid` removal deferred to Phase 5 R-P1). `print`→`logging` migration in `music_gen.py` deferred to Phase 2 per ROADMAP. R-S2 / R-S7 (musicality_score portion) / R-S8 closed.
 - **2026-04-08 (Plan 01-04):** pytest skeleton landed with 95 passing tests across `tests/test_time_signature.py` and `tests/test_duration_validator.py` (runtime 2.75s). `dev-requirements.txt` and `tests/conftest.py` sys.path shim are intentional throwaway scaffolding scheduled for deletion in Phase 3. Tests pin current behavior including the cosmetic-if in `verify_beat_pattern` — Phase 2 registry refactor must preserve `len(pattern) == numerator` for ALL time signatures. Local `.venv/` required because system Python is PEP-668 managed (Debian-family). R-Q2 initial coverage closed. Phase 01 complete.
 - **2026-04-18 (Plan 02-01):** Config threaded as explicit parameter through call chain (not module-level singleton) — preserves importability (Plan 01-01 property). cfg parameters default to None with fallback to config.Config() inside functions. generate_song_arrangement default arg changed from literal 'song_structures.json' to None + runtime fallback (Pitfall 7). T-02-01: os.path.abspath() on env/CLI path inputs. T-02-02: FileNotFoundError and PermissionError caught in pool report. R-S5 and R-S9 closed.
+- **2026-04-18 (Plan 02-02):** TimeSignatureSpec frozen dataclass with 19 fields; TimeSignatureRegistry with all 7 signatures as single source of truth. All 10 time-sig functions in music_gen.py are thin wrappers. DurationValidator._analyze_time_signature delegates to registry via local import adapter (avoids circular import). beat_pattern_length == numerator for ALL sigs (cosmetic-if preserved). Empty frozenset for 5/4/7/8 valid_chord_pattern_lengths triggers default-True. generate_random_time_signature missing-return bug (Pitfall 5) fixed via random.choices. 186 registry tests added. A3 (RNG order change from threshold-loop to random.choices) confirmed — Phase 5 must baseline against post-refactor behavior. R-S6 closed.
 
 ## Next command
 
-Execute 02-02 plan (timesig registry).
+Execute 02-03 plan (print→logging migration).
 
 ---
-*Last updated: 2026-04-18 after Plan 02-01 completion*
+*Last updated: 2026-04-18 after Plan 02-02 completion*
