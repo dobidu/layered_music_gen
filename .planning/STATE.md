@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Phase 05 planned — ready to execute
-last_updated: "2026-04-19T21:16:02Z"
+status: Phase 05 Wave 1 (Plan 05-02) complete — Plan 05-03 next
+last_updated: "2026-04-19T21:23:00Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 25
-  completed_plans: 20
-  percent: 80
+  completed_plans: 21
+  percent: 84
 ---
 
 # STATE
@@ -24,7 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 5
-Plan: 05-01 complete (Wave 0 test infrastructure); 05-02 next (Wave 1 — seeds.py)
+Plan: 05-02 complete (Wave 1 — seeds.py + test_seeds.py + test_split.py); 05-03 next (Wave 1 — git mv musicality_score.py → src/musicgen/musicality.py)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -98,7 +98,7 @@ Plan: 05-01 complete (Wave 0 test infrastructure); 05-02 next (Wave 1 — seeds.
 
 ## Next command
 
-Phase 05 Wave 0 complete (Plan 05-01 sequential executor landed 2 task commits + SUMMARY). Auto-chain flag active → next plan is `/gsd-execute-plan 5 2` (Plan 05-02, Wave 1 — src/musicgen/seeds.py + assign_split). Resume file: `.planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-02-PLAN.md`.
+Phase 05 Wave 1 first-half complete (Plan 05-02 sequential executor landed 3 task commits + SUMMARY). Auto-chain flag active → next plan is `/gsd-execute-plan 5 3` (Plan 05-03, Wave 1 — git mv musicality_score.py → src/musicgen/musicality.py). Resume file: `.planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-03-PLAN.md`.
 
 ---
 
@@ -106,5 +106,7 @@ Phase 05 Wave 0 complete (Plan 05-01 sequential executor landed 2 task commits +
 
 - **2026-04-19 (Plan 05-01):** Wave 0 test infrastructure landed via sequential executor on main tree (no worktree). Two atomic commits: (1) `67a04e4` — 8 files created (tests/conftest.py registering `--regen-goldens` pytest flag per D-32; 6 Wave 0 test stubs using `pytest.skip(allow_module_level=True)` inheriting Phase 4 Wave 0 idiom; tests/fixtures/determinism/README.md as git-trackable dir marker documenting Wave 5's 7-file golden layout). (2) `bc925b5` — tests/test_no_bare_random_in_package.py widened: `_bare_random_calls` allow-list broadened from `{"Random"}` → `{"Random", "getstate", "setstate"}` per D-42 so Wave 1's `seeds.save_random_state()` context manager (D-20) passes the guard; meta-test renamed `test_package_scan_covers_all_phase4_modules` → `test_package_scan_covers_all_package_modules`; `expected_present` set expanded by 5 Phase 5 module basenames (`seeds.py, writer.py, manifest.py, api.py, musicality.py`); `@pytest.mark.xfail(strict=False, reason="Phase 5 modules land in Waves 1-4 ...")` added — Plan 05-05 removes the xfail once api.py lands. Full suite: 503 passed, 8 skipped (6 new stubs + 2 prior), 1 xfailed (meta-test, expected). Zero regressions vs 504-passed baseline — the 1-passed → 1-xfailed flip on the meta-test is accounted for in the net-pass count. `.venv/bin/pytest --help | grep regen-goldens` confirms flag registration. All downstream Phase 5 plans unblocked: they can edit-in-place rather than cold-create test files. No deviations from plan.
 
+- **2026-04-19 (Plan 05-02):** Wave 1 RNG foundation landed via sequential executor. Three atomic commits: (1) `c4b3d91` — `src/musicgen/seeds.py` created (121 lines, pure stdlib — hashlib + random + contextlib). Four functions verbatim from 05-CONTEXT D-17/D-18/D-20/D-26: `derive_sample_seed(global_seed, sample_index)` uses `int.from_bytes(raw[:8], "big")` (byte-slice load-bearing for Wave 5 goldens), `make_rngs(sample_seed)` returns 5-domain dict `{params, generators, soundfonts, fx, mix}` via XOR masks 0x01..0x05, `assign_split(sample_seed, ratios)` uses `"split:"`-prefixed sha256[:4] % 10000 / 100.0 (prefix disambiguates from derive_sample_seed's hash), `save_random_state()` as `@contextlib.contextmanager` with try/finally. Five module-level domain name constants `RNG_PARAMS..RNG_MIX`. AST guard (tests/test_no_bare_random_in_package.py) green on seeds.py — widened allow-list from Plan 05-01 permits `random.Random` / `random.getstate` / `random.setstate`. (2) `62452fe` — `tests/test_seeds.py` Wave 0 stub replaced with 129-line real suite: TestDeriveSampleSeed (9 cases: 5 parametrized determinism + no-collision/order-sensitive/byte-exact-formula spot-check/64-bit-unsigned), TestMakeRngs (9 cases: 5-domain keyset + 5 parametrized per-XOR-constant + pairwise-distinct 1000-draw streams + reseed-same-draws), TestSaveRandomState (3 cases: after-mutation / on-exception / nested-contexts). 21 passes in 30ms. (3) `bc2e4fc` — `tests/test_split.py` Wave 0 stub replaced: TestAssignSplit with 108 cases (5 parametrized determinism + 100 parametrized valid-label + 2 empirical 10k-sample ratio checks on default 80/10/10 and alternative 50/25/25 ratios + 1 disambiguation sanity probe). Empirical ratios land well within ±2%: 80/10/10 → train=8015, valid=989, test=996; 50/25/25 → train=4977, valid=2533, test=2490. 108 passes in 100ms. Full suite: 503 → 633 passed (+130 net: 21 test_seeds + 108 test_split + 1 new AST guard parametrize for seeds.py), 8 → 6 skipped (2 stubs replaced), 1 xfailed unchanged, 0 failed. Zero regressions, zero deviations. R-P6 + R-P7 partial closure (full closure awaits Wave 3 sample.json split field + Wave 4 api.py RNG routing + Wave 5 goldens). Plan duration ~3 min. Byte-exact formulas proved in tests — `test_matches_documented_formula` asserts `derive_sample_seed(42, 0) == int.from_bytes(hashlib.sha256(b'42:0').digest()[:8], 'big')`; `test_each_domain_xor_constant[fx-4]` et al. parametrize per-mask so regressions name the exact failing domain.
+
 ---
-*Last updated: 2026-04-19 after Plan 05-01 sequential execution. Progress: 19 → 20 / 25 plans (80%). Next: Plan 05-02 (Wave 1 — seeds.py + assign_split).*
+*Last updated: 2026-04-19 after Plan 05-02 sequential execution. Progress: 20 → 21 / 25 plans (84%). Next: Plan 05-03 (Wave 1 — git mv musicality_score.py → src/musicgen/musicality.py).*
