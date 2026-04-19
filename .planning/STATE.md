@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Ready to execute
-last_updated: "2026-04-19T17:41:29.064Z"
+last_updated: "2026-04-19T17:49:30.630Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 19
-  completed_plans: 16
-  percent: 84
+  completed_plans: 17
+  percent: 89
 ---
 
 # STATE
@@ -24,7 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 04 (renderer-mixer-annotator-beats-extraction) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -88,9 +88,11 @@ Plan: 5 of 7
 
 - **2026-04-19 (Plan 04-03):** `src/musicgen/mixer.py` created — FX + overlay + layer-mask + concat module (R-X5). Key decisions: (1) `_make_silent_stem` uses `frame_rate=sample_rate + .set_channels(channels)` defaulting to 44100/2 — stereo 44.1kHz match required (RESEARCH correction #2) or pydub overlay breaks and Phase 5 R-P2 stems-sum-to-mix assertion would fail. (2) D-11 preserved verbatim: FX applied to ALL 4 layers unconditionally before mask check — moving apply_fx_to_layer inside the if-branch would change RNG draw count and break Phase 5 golden-seed baseline. (3) R-S4 gain/pan fix carried verbatim with 4 explicit per-layer calls (not a loop) matching `music_gen.py:287-294` — explicit calls satisfy grep regression guard (>= 4 apply_gain lines) and make the fix visible. (4) `build_fx_boards` / `compute_layer_mask` raise ValueError if rng=None (D-17 guard). (5) `MixResult` frozen dataclass with 6 fields (D-02). (6) `test_silent_stem_for_masked_off_layer` uses `os.path.basename()` for `_silent` check — pytest embeds test name in tmp_path dirname which contains `_silent_stem`, causing false positives on full path check. 27 new tests (8 classes), full suite: 450 passed, 3 skipped. Zero bare `random.*` AST verified. Commits: 94d4906 (mixer.py), b1da9c6 (tests).
 
+- **2026-04-19 (Plan 04-04):** `src/musicgen/annotator.py` created — pure-function R-P4 schema assembler (R-X6). Key decisions: (1) Signature extended beyond D-14's original definition to include `chord_progressions`, `midi_paths`, `mix_path` positional params — annotator cannot derive these from SongParams/MixResult alone (RESEARCH Open Questions #2 and #3). (2) `analysis_failed` is tri-state kwarg (None=omit key, True=emit key=True, False=omit key) per D-16 clarification. (3) `pre_roll_offset_seconds` hardcoded as None (not a kwarg) — R-P9 Phase 6 fills it. (4) `soundfonts` taken from first arrangement part's MixResult — all parts share the same dict. 41 fixture-driven tests in `tests/test_annotator.py` across 8 classes (TestAnnotateShape/TestTbdFieldsAreNone/TestAnalysisFailedKey/TestModeDerivation/TestSongArrangement/TestAnnotatorIsPure/TestAnnotatorDeterminism/TestStemsAndMidi). Zero I/O AST-verified (D-14). Zero bare `random.*` AST-verified (D-17). Full suite: 491 passed, 2 skipped. R-X6 closed. Commits: 93d7673 (annotator.py), 3a884db (tests).
+
 ## Next command
 
-Resume Phase 04 at Plan 04-04 (Wave 4 — annotator.py). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-04-*.md`.
+Resume Phase 04 at Plan 04-05 (Wave 5 — orchestrator collapse). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-05-*.md`.
 
 ---
-*Last updated: 2026-04-19 after Plan 04-03 (Wave 3 — mixer module) execution complete. Plan 5 of 7 in Phase 04.*
+*Last updated: 2026-04-19 after Plan 04-04 (Wave 4 — annotator module) execution complete. Plan 6 of 7 in Phase 04.*
