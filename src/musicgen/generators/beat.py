@@ -24,18 +24,14 @@ from midiutil import MIDIFile
 
 import config
 from musicgen.duration_validator import DurationValidator
+# D-21: beat_duration primary definition moves to musicgen.beats this phase.
+# Import and re-export so existing callers (generators, tests, music_gen.py:34)
+# are unaffected. calculate_swing_offset stays here (used only at MIDI write
+# time, not at annotation time).
+from musicgen.beats import beat_duration  # noqa: F401  (D-21 re-export)
 from timesig import TimeSignatureRegistry
 
 logger = logging.getLogger(__name__)
-
-
-def beat_duration(signature: str, tempo: int) -> float:
-    """
-    Calculates the duration of a beat based on the time signature and BPM.
-    """
-    numerator, denominator = map(int, signature.split('/'))
-    beat_length = 60 / tempo  # Duration of a quarter note
-    return beat_length * (4 / denominator)
 
 
 def calculate_swing_offset(base_duration: float, swing_amount: float) -> float:
