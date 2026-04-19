@@ -153,6 +153,16 @@ Plans:
 
 **Exit criteria:** Running the library API with the same seed twice produces bit-identical `sample.json` and MIDI, and bit-identical mix WAV under the pinned FluidSynth binary. Sum-of-stems assertion passes on > 95% of random seeds from a small smoke batch (remaining failures must be understood — likely gain rounding).
 
+**Plans:** 6 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Wave 0: test infrastructure (7 test stubs + conftest.py --regen-goldens flag + AST guard widens allow-list for random.getstate/setstate + xfail meta-test for future expected_present modules). (R-P1..R-P8, R-Q3 forward-guard)
+- [ ] 05-02-PLAN.md — Wave 1: src/musicgen/seeds.py (derive_sample_seed/make_rngs/save_random_state/assign_split per D-17/D-18/D-20/D-26 verbatim) + fully-populated test_seeds.py + test_split.py. (R-P6, R-P7)
+- [ ] 05-03-PLAN.md — Wave 1: git mv musicality_score.py → src/musicgen/musicality.py (D-03; closes Phase 3 D-11 / Phase 4 D-04 deferral); rewrite single import site in music_gen.py. (R-P4)
+- [ ] 05-04-PLAN.md — Wave 2: src/musicgen/manifest.py (ManifestWriter, threading.Lock default, sentinel-only is_sample_complete) + src/musicgen/writer.py (atomic per-sample layout, absolute-tick MIDI concat, int32 sum-of-stems assertion, deep-copy path rewrite) + config.py +7 fields + __post_init__ validation; populate test_manifest.py + test_writer.py + extend test_config.py. (R-P1, R-P2, R-P3, R-P4, R-P5, R-P6)
+- [ ] 05-05-PLAN.md — Wave 3: src/musicgen/api.py (generate + SampleResult + _generate_all_midi + resume short-circuit) + rewrite __init__.py (public exports) + collapse music_gen.py from 199 → ~40 lines (delete create_song + generate_song_parts + generate_song per D-34) + migrate tests/test_integration_full_generation.py atomically + populate test_api.py + remove xfail from AST meta-test. (R-P1..R-P7, R-Q3)
+- [ ] 05-06-PLAN.md — Wave 4: tests/test_determinism_golden.py (TestDeterminismGoldens parametrized over 6 artifacts + --regen-goldens flag + fluidsynth_version.txt xfail gate + TestSameProcessStability fast D-30 in-process cross-check) + refined fixtures README. (R-P8, R-Q3)
+
 ---
 
 ## Phase 6: Productize II — FluidSynth calibration, batch generation, CLI, resumability
