@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Phase 05 Wave 1 (Plan 05-02) complete — Plan 05-03 next
-last_updated: "2026-04-19T21:23:00Z"
+status: Phase 05 Wave 1 (Plans 05-02 + 05-03) complete — Plan 05-04 next
+last_updated: "2026-04-19T21:32:14Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 25
-  completed_plans: 21
-  percent: 84
+  completed_plans: 22
+  percent: 88
 ---
 
 # STATE
@@ -24,7 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 5
-Plan: 05-02 complete (Wave 1 — seeds.py + test_seeds.py + test_split.py); 05-03 next (Wave 1 — git mv musicality_score.py → src/musicgen/musicality.py)
+Plan: 05-03 complete (Wave 1 — git mv musicality_score.py → src/musicgen/musicality.py + rewrite music_gen.py import site + sweep docstring module refs); 05-04 next (Wave 2 — writer.py + manifest.py + config.py field extensions)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -98,7 +98,7 @@ Plan: 05-02 complete (Wave 1 — seeds.py + test_seeds.py + test_split.py); 05-0
 
 ## Next command
 
-Phase 05 Wave 1 first-half complete (Plan 05-02 sequential executor landed 3 task commits + SUMMARY). Auto-chain flag active → next plan is `/gsd-execute-plan 5 3` (Plan 05-03, Wave 1 — git mv musicality_score.py → src/musicgen/musicality.py). Resume file: `.planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-03-PLAN.md`.
+Phase 05 Wave 1 complete (Plan 05-02 seeds + Plan 05-03 musicality move both landed via sequential executor). Auto-chain flag active → next plan is `/gsd-execute-plan 5 4` (Plan 05-04, Wave 2 — src/musicgen/writer.py + src/musicgen/manifest.py + config.py +7 fields + __post_init__ validation; populate test_manifest.py + test_writer.py + extend test_config.py). Resume file: `.planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-04-PLAN.md`.
 
 ---
 
@@ -108,5 +108,7 @@ Phase 05 Wave 1 first-half complete (Plan 05-02 sequential executor landed 3 tas
 
 - **2026-04-19 (Plan 05-02):** Wave 1 RNG foundation landed via sequential executor. Three atomic commits: (1) `c4b3d91` — `src/musicgen/seeds.py` created (121 lines, pure stdlib — hashlib + random + contextlib). Four functions verbatim from 05-CONTEXT D-17/D-18/D-20/D-26: `derive_sample_seed(global_seed, sample_index)` uses `int.from_bytes(raw[:8], "big")` (byte-slice load-bearing for Wave 5 goldens), `make_rngs(sample_seed)` returns 5-domain dict `{params, generators, soundfonts, fx, mix}` via XOR masks 0x01..0x05, `assign_split(sample_seed, ratios)` uses `"split:"`-prefixed sha256[:4] % 10000 / 100.0 (prefix disambiguates from derive_sample_seed's hash), `save_random_state()` as `@contextlib.contextmanager` with try/finally. Five module-level domain name constants `RNG_PARAMS..RNG_MIX`. AST guard (tests/test_no_bare_random_in_package.py) green on seeds.py — widened allow-list from Plan 05-01 permits `random.Random` / `random.getstate` / `random.setstate`. (2) `62452fe` — `tests/test_seeds.py` Wave 0 stub replaced with 129-line real suite: TestDeriveSampleSeed (9 cases: 5 parametrized determinism + no-collision/order-sensitive/byte-exact-formula spot-check/64-bit-unsigned), TestMakeRngs (9 cases: 5-domain keyset + 5 parametrized per-XOR-constant + pairwise-distinct 1000-draw streams + reseed-same-draws), TestSaveRandomState (3 cases: after-mutation / on-exception / nested-contexts). 21 passes in 30ms. (3) `bc2e4fc` — `tests/test_split.py` Wave 0 stub replaced: TestAssignSplit with 108 cases (5 parametrized determinism + 100 parametrized valid-label + 2 empirical 10k-sample ratio checks on default 80/10/10 and alternative 50/25/25 ratios + 1 disambiguation sanity probe). Empirical ratios land well within ±2%: 80/10/10 → train=8015, valid=989, test=996; 50/25/25 → train=4977, valid=2533, test=2490. 108 passes in 100ms. Full suite: 503 → 633 passed (+130 net: 21 test_seeds + 108 test_split + 1 new AST guard parametrize for seeds.py), 8 → 6 skipped (2 stubs replaced), 1 xfailed unchanged, 0 failed. Zero regressions, zero deviations. R-P6 + R-P7 partial closure (full closure awaits Wave 3 sample.json split field + Wave 4 api.py RNG routing + Wave 5 goldens). Plan duration ~3 min. Byte-exact formulas proved in tests — `test_matches_documented_formula` asserts `derive_sample_seed(42, 0) == int.from_bytes(hashlib.sha256(b'42:0').digest()[:8], 'big')`; `test_each_domain_xor_constant[fx-4]` et al. parametrize per-mask so regressions name the exact failing domain.
 
+- **2026-04-19 (Plan 05-03):** Wave 1 musicality relocation landed via sequential executor in one atomic commit. `48f71ac` — `git mv musicality_score.py src/musicgen/musicality.py` (R100 rename confirmed by `git diff --cached --name-status -M` and by commit output `rename musicality_score.py => src/musicgen/musicality.py (100%)`; byte-identical content; `git log --follow src/musicgen/musicality.py` traces through `350bf60` Plan 01-03 narrow-exceptions and `94c19a0` initial upload — 3-commit rename history preserved). Single live import site rewritten in `music_gen.py` (line 3: `import musicality_score, config` split into `import config` + `from musicgen import musicality` — clean grep-safe idiom; line 121 call site rewritten to `musicality.get_musicality_score(final_wav)`). Two external docstring module-name references swept under Rule 2 (deviation 1): `src/musicgen/annotator.py:110` (parameter docstring) + `tests/test_integration_full_generation.py:17` (module-docstring pipeline diagram), both rewritten to `musicgen.musicality.get_musicality_score`. Mirrors 03-02 precedent exactly (4 doc-refs swept there, 2 here). R-P4 JSON schema field key `"musicality_score"` PRESERVED in 4 locations under Rule 2 scope clarification (deviation 2): `src/musicgen/annotator.py:11` + `:163` (dict literal) + `tests/test_annotator.py:146` (schema assertion list) + `tests/test_integration_full_generation.py:158` (schema assertion list) — this is the frozen Phase 4 D-15/D-16 schema contract, also referenced in 05-CONTEXT D-13's manifest shape and Wave 5 determinism goldens; renaming it would be Rule 4 architectural cascade. Moved-file internal refs preserved per plan carveout: `src/musicgen/musicality.py:243` (def), `:250` (CLI usage docstring), `:254` (internal call). Post-commit: `from musicgen.musicality import get_musicality_score` → exits 0; `import musicality_score` → `ModuleNotFoundError` (D-03 satisfied, no back-compat shim); `import music_gen` → exits 0 (FluidSynth-absent WARNING at renderer import is expected CI behavior per Plan 04-05 D-07). Full suite: 633 → 634 passed, 6 skipped, 1 xfailed (net +1: AST guard `tests/test_no_bare_random_in_package.py` auto-picked up `src/musicgen/musicality.py` via `glob.glob` parametrize and passed — the moved file uses `numpy.random` transitively via librosa, zero stdlib `random.*` calls). Cosmetic mode change `100644 → 100755` (pre-session chmod +x artifact) folded into the same commit. Plan duration ~3 min. Phase 3 D-11 / Phase 4 D-04 musicality_score relocation deferral finally closed. Wave 1 architecturally complete (seeds.py + musicality.py landed); Wave 2 writer.py + manifest.py now unblocked — the forthcoming api.py import line `from musicgen import renderer, mixer, annotator, beats, writer, musicality` (05-PATTERNS.md:273) has `musicality` resolvable ahead of Wave 4. Temporary `from musicgen import musicality` bridge in `music_gen.py:3` is explicitly scheduled for deletion in Plan 05-05 alongside the create_song body per CONTEXT D-34. Zero deviations from plan intent (both deviations are plan-anticipated scope extensions).
+
 ---
-*Last updated: 2026-04-19 after Plan 05-02 sequential execution. Progress: 20 → 21 / 25 plans (84%). Next: Plan 05-03 (Wave 1 — git mv musicality_score.py → src/musicgen/musicality.py).*
+*Last updated: 2026-04-19 after Plan 05-03 sequential execution. Progress: 21 → 22 / 25 plans (88%). Next: Plan 05-04 (Wave 2 — writer.py + manifest.py + config.py field extensions).*
