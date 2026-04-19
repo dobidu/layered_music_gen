@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Ready to execute
-last_updated: "2026-04-19T17:15:34.875Z"
+last_updated: "2026-04-19T17:22:08.977Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 19
-  completed_plans: 13
-  percent: 68
+  completed_plans: 14
+  percent: 74
 ---
 
 # STATE
@@ -24,7 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 04 (renderer-mixer-annotator-beats-extraction) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -82,9 +82,11 @@ Plan: 2 of 7
 
 - **2026-04-19 (Plan 04-00):** Wave 0 infrastructure complete. `mido>=1.3.3` added to `pyproject.toml [project].dependencies` (RESEARCH correction #3: not a transitive dep of midi2audio; beats.py needs it for MIDI-tick extraction). `markers = [slow, integration]` added to `[tool.pytest.ini_options]` (no `--strict-markers` yet; Phase 6+ concern). `.venv/bin/pip install -e '.[dev]'` refreshed: mido 1.3.3 installed, `mido.bpm2tempo` and `mido.tick2second` both callable. 6 test-file stubs created (tests/test_beats.py, test_renderer.py, test_mixer.py, test_annotator.py, test_no_bare_random_in_package.py, test_integration_full_generation.py) — all use `pytest.skip(allow_module_level=True)`; suite: 371 passed, 6 skipped. Commits: bde1e29 (pyproject.toml), 01f3290 (6 stubs).
 
+- **2026-04-19 (Plan 04-01):** `src/musicgen/beats.py` created — authoritative MIDI-tick beat/downbeat extraction module (R-X7). Key decisions: (1) `extract_downbeat_times` uses TIME-GRID algorithm (`spec.numerator * beat_slot_s` per measure), NOT the `beat_times[::numerator]` stride-slice described in D-20 — RESEARCH correction #1 confirmed by inspecting all 6 beat pattern files (4/4 `intro: 0,42,38,0` has 2 non-zero entries, 12/8 has 9-10, both fail under stride-slice). (2) `beat_times` parameter retained in signature for API symmetry / future cross-check. (3) D-21 re-export applied: `generators/beat.py` body of `beat_duration` replaced by `from musicgen.beats import beat_duration` — both import paths yield the same function object (identity test passes). 36 new tests in `tests/test_beats.py` covering TestBeatDuration (10), TestExtractBeatTimes (3), TestSwingCases (5 — swing=0.5/0.66/0.75), TestExtractDownbeatTimes (13 — all 6 time signatures, grid math, input-independence, 12/8). Full suite: 407 passed, 5 skipped. Zero bare `random.*` in beats.py. Commits: 40d9e32 (beats.py), d1019f3 (re-export), ba7c40d (tests).
+
 ## Next command
 
-Resume Phase 04 at Plan 04-01 (Wave 1 — beats.py extraction). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-01-*.md`.
+Resume Phase 04 at Plan 04-02 (Wave 2 — renderer.py). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-02-*.md`.
 
 ---
-*Last updated: 2026-04-19 after Plan 04-00 (Wave 0 infrastructure) execution complete. Plan 2 of 7 in Phase 04.*
+*Last updated: 2026-04-19 after Plan 04-01 (Wave 1 — beats module) execution complete. Plan 3 of 7 in Phase 04.*

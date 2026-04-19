@@ -123,7 +123,7 @@ Plans:
 
 Plans:
 - [x] 04-00-wave-0-infrastructure-PLAN.md — Wave 0: add mido>=1.3.3 dep + pytest markers + scaffold 6 new test files. (R-X4, R-X5, R-X6, R-X7, R-X8)
-- [ ] 04-01-beats-module-PLAN.md — Create src/musicgen/beats.py with beat_duration + extract_beat_times (mido.tick2second) + extract_downbeat_times (time-grid, RESEARCH correction #1); re-export beat_duration from generators/beat.py (D-21); tests/test_beats.py with 3 swing cases. (R-X7)
+- [x] 04-01-beats-module-PLAN.md — Create src/musicgen/beats.py with beat_duration + extract_beat_times (mido.tick2second) + extract_downbeat_times (time-grid, RESEARCH correction #1); re-export beat_duration from generators/beat.py (D-21); tests/test_beats.py with 3 swing cases. (R-X7)
 - [ ] 04-02-renderer-module-PLAN.md — Create src/musicgen/renderer.py with FLUIDSYNTH_VERSION + RenderResult + pick_soundfonts(cfg, rng) + render_stems via ThreadPoolExecutor(max_workers=4); tests/test_renderer.py with mocked FluidSynth. (R-X4)
 - [ ] 04-03-mixer-module-PLAN.md — Create src/musicgen/mixer.py absorbing create_effect + generate_pedalboard (→ build_fx_boards) + apply_fx_to_layer + pedalboard_info_json + _lin_to_db (unnested); add compute_layer_mask + _make_silent_stem (stereo 44.1kHz, RESEARCH correction #2) + MixResult + mix_part + concat_parts; tests/test_mixer.py with seeded-RNG + D-11 FX-on-all-layers + R-S4 preservation. (R-X5)
 - [ ] 04-04-annotator-module-PLAN.md — Create src/musicgen/annotator.py with annotate(...) pure function producing R-P4 schema (Phase-4 fills + Phase-5 None semantics per D-15/D-16); tests/test_annotator.py fixture-driven golden-dict + purity contract. (R-X6)
