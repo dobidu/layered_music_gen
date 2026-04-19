@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Ready to execute
-last_updated: "2026-04-19T17:49:30.630Z"
+last_updated: "2026-04-19T18:05:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 19
-  completed_plans: 17
-  percent: 89
+  completed_plans: 18
+  percent: 94
 ---
 
 # STATE
@@ -24,13 +24,13 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 04 (renderer-mixer-annotator-beats-extraction) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: Phase 03 complete 2026-04-19; Phase 04 next
-- Resume file: .planning/phases/04-*/ (pending Phase 4 init)
-- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete; Phase 03 Wave 3 (Plan 03-03 — sampler extraction) complete; Phase 03 Wave 4 (Plan 03-04 — generators extraction, 368 tests, R-X3 closed) complete; Phase 03 Wave 5 (Plan 03-05 — music21 isolation regression test + tests/conftest.py deletion + phase-gate verification) complete, 371 tests pass, zero bare random.* across src/musicgen/, R-X1/R-X2/R-X3 all verified. Phase 3 architecturally closed.
+- Active phase: Phase 03 complete 2026-04-19; Phase 04 Wave 5 (Plan 04-05 — orchestrator collapse + AST guard) complete 2026-04-19
+- Resume file: .planning/phases/04-renderer-mixer-annotator-beats-extraction/04-06-*.md
+- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete; Phase 03 Wave 3 (Plan 03-03 — sampler extraction) complete; Phase 03 Wave 4 (Plan 03-04 — generators extraction, 368 tests, R-X3 closed) complete; Phase 03 Wave 5 (Plan 03-05 — music21 isolation regression test + tests/conftest.py deletion + phase-gate verification) complete, 371 tests pass, zero bare random.* across src/musicgen/, R-X1/R-X2/R-X3 all verified. Phase 3 architecturally closed. Phase 04 Waves 0-5 complete (beats + renderer + mixer + annotator + orchestrator collapse); music_gen.py collapsed to 199 lines, beat_anotator.py deleted, 504 tests pass.
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -90,9 +90,11 @@ Plan: 6 of 7
 
 - **2026-04-19 (Plan 04-04):** `src/musicgen/annotator.py` created — pure-function R-P4 schema assembler (R-X6). Key decisions: (1) Signature extended beyond D-14's original definition to include `chord_progressions`, `midi_paths`, `mix_path` positional params — annotator cannot derive these from SongParams/MixResult alone (RESEARCH Open Questions #2 and #3). (2) `analysis_failed` is tri-state kwarg (None=omit key, True=emit key=True, False=omit key) per D-16 clarification. (3) `pre_roll_offset_seconds` hardcoded as None (not a kwarg) — R-P9 Phase 6 fills it. (4) `soundfonts` taken from first arrangement part's MixResult — all parts share the same dict. 41 fixture-driven tests in `tests/test_annotator.py` across 8 classes (TestAnnotateShape/TestTbdFieldsAreNone/TestAnalysisFailedKey/TestModeDerivation/TestSongArrangement/TestAnnotatorIsPure/TestAnnotatorDeterminism/TestStemsAndMidi). Zero I/O AST-verified (D-14). Zero bare `random.*` AST-verified (D-17). Full suite: 491 passed, 2 skipped. R-X6 closed. Commits: 93d7673 (annotator.py), 3a884db (tests).
 
+- **2026-04-19 (Plan 04-05):** `music_gen.py` collapsed from 523 to 199 lines by deleting 9 audio-side functions (`save_beat_annotations`, `read_instrument_probabilities`, `get_random_sound_font`, `get_levels`, `create_effect`, `generate_pedalboard`, `apply_fx_to_layer`, `pedalboard_info_json`, `mix_and_save`) and rewriting `create_song` as a 70-line thin orchestrator chaining `renderer → mixer → beats → annotator` (D-23/D-24). `generate_song_parts` extended to return `chord_progressions` as 6th dict — annotator needed per-part chord data already computed but previously discarded (RESEARCH OQ-2). `beat_anotator.py` deleted with `git rm -f` (D-03: zero importers confirmed by grep; file had local modifications). `tests/test_no_bare_random_in_package.py` replaced with real package-wide AST guard parametrized across all 12 modules under `src/musicgen/` via `glob.glob`; `_bare_random_calls` excludes `random.Random` constructor (permits RNG factory). `test_import_music_gen_does_not_emit_logs` updated to filter `caplog.records` by `r.name == "music_gen"` — D-07 renderer FluidSynth-absent WARNING at import is expected CI behavior, not a `music_gen.py` side-effect. Full suite: 504 passed, 1 skipped; +13 new tests from AST guard. R-X4/R-X5/R-X6/R-X7 closed by orchestrator wiring.
+
 ## Next command
 
-Resume Phase 04 at Plan 04-05 (Wave 5 — orchestrator collapse). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-05-*.md`.
+Resume Phase 04 at Plan 04-06 (Wave 6 — E2E integration test). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-06-*.md`.
 
 ---
-*Last updated: 2026-04-19 after Plan 04-04 (Wave 4 — annotator module) execution complete. Plan 6 of 7 in Phase 04.*
+*Last updated: 2026-04-19 after Plan 04-05 (Wave 5 — orchestrator collapse + AST guard) execution complete. Plan 7 of 7 in Phase 04.*
