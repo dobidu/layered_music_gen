@@ -139,3 +139,96 @@ class TestImportSideEffects:
             isinstance(getattr(cfg_module, name, None), cfg_module.Config)
             for name in dir(cfg_module)
         )
+
+
+# ============================================================
+# Phase 5 Config extensions (D-09, D-27 — R-P6, R-P7 supporting)
+# ============================================================
+
+
+class TestPhase5NewFields:
+    """D-09: 7 new Config fields with correct defaults."""
+
+    def test_dataset_root_default(self):
+        cfg = config.Config()
+        assert cfg.dataset_root.endswith(os.path.sep + "dataset") or cfg.dataset_root.endswith("/dataset")
+
+    def test_global_seed_default_none(self):
+        """D-21: None at Config level is fine; api.generate raises on use."""
+        cfg = config.Config()
+        assert cfg.global_seed is None
+
+    def test_sample_index_default_zero(self):
+        cfg = config.Config()
+        assert cfg.sample_index == 0
+
+    def test_split_ratios_default(self):
+        cfg = config.Config()
+        assert cfg.split_ratios == (0.8, 0.1, 0.1)
+
+    def test_sum_of_stems_epsilon_default(self):
+        cfg = config.Config()
+        assert cfg.sum_of_stems_epsilon == 1e-3
+
+    def test_keep_working_dirs_default_false(self):
+        cfg = config.Config()
+        assert cfg.keep_working_dirs is False
+
+    def test_workers_default_none(self):
+        """D-43: workers reserved for Phase 6, defaults None."""
+        cfg = config.Config()
+        assert cfg.workers is None
+
+
+class TestSplitRatiosValidation:
+    """D-27: Config.__post_init__ rejects invalid split_ratios."""
+
+    def test_sum_exceeds_one_raises(self):
+        with pytest.raises(ValueError, match="sum"):
+            config.Config(split_ratios=(0.8, 0.1, 0.5))
+
+    def test_sum_less_than_one_raises(self):
+        with pytest.raises(ValueError, match="sum"):
+            config.Config(split_ratios=(0.4, 0.3, 0.1))
+
+    def test_negative_ratio_raises(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            config.Config(split_ratios=(0.8, -0.1, 0.3))
+
+    def test_valid_default_accepted(self):
+        """Default (0.8, 0.1, 0.1) passes validation."""
+        cfg = config.Config(split_ratios=(0.8, 0.1, 0.1))
+        assert cfg.split_ratios == (0.8, 0.1, 0.1)
+
+    def test_alternative_valid_ratios(self):
+        """Non-default but valid ratios accepted."""
+        cfg = config.Config(split_ratios=(0.5, 0.25, 0.25))
+        assert cfg.split_ratios == (0.5, 0.25, 0.25)
+
+    def test_within_epsilon_tolerance(self):
+        """Float roundoff within 1e-9 of 1.0 is accepted."""
+        # (0.1 + 0.1 + 0.8 = 0.9999999999999999 in IEEE-754)
+        cfg = config.Config(split_ratios=(0.1, 0.1, 0.8))
+        assert cfg.split_ratios == (0.1, 0.1, 0.8)
+
+
+class TestDatasetRootEnvVar:
+    """D-09: MUSICGEN_DATASET_ROOT follows Phase 2 D-01 precedence."""
+
+    def test_env_var_overrides_default(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MUSICGEN_DATASET_ROOT", str(tmp_path / "custom"))
+        cfg = config.Config.load()
+        assert cfg.dataset_root == os.path.abspath(str(tmp_path / "custom"))
+
+    def test_env_var_normalized_to_abspath(self, tmp_path, monkeypatch):
+        """T-02-01 mitigation — paths abspath-ed."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("MUSICGEN_DATASET_ROOT", "./relative_dataset")
+        cfg = config.Config.load()
+        assert os.path.isabs(cfg.dataset_root)
+        assert cfg.dataset_root.endswith("relative_dataset")
+
+    def test_no_env_var_uses_default(self, monkeypatch):
+        monkeypatch.delenv("MUSICGEN_DATASET_ROOT", raising=False)
+        cfg = config.Config.load()
+        assert cfg.dataset_root.endswith("dataset")
