@@ -107,7 +107,7 @@ def annotate(
         downbeat_times: Dict of per-part downbeat timestamps from
             :func:`musicgen.beats.extract_downbeat_times` (Plan 04-01).
         musicality: Dict with keys ``"score"`` (float) and ``"components"``
-            (dict) from ``musicality_score.get_musicality_score``.
+            (dict) from ``musicgen.musicality.get_musicality_score``.
         chord_progressions: Dict keyed by part -> list of chord strings.
             Threaded by the orchestrator since ``generate_song_parts``
             computes but discards this today (RESEARCH Open Question #2).

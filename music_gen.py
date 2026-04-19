@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging, time, json, random, os, uuid
-import musicality_score, config
+import config
+from musicgen import musicality
 from timesig import TimeSignatureRegistry
 from musicgen.sampler import (
     SongParams, generate_random_key, generate_random_tempo,
@@ -117,7 +118,7 @@ def create_song(
         song_time_start += render_results[part].duration_seconds
     final_wav = mixer.concat_parts(part_mix_paths, os.path.join(name, name + ".wav"))
     logger.info("Song saved as: %s", final_wav)
-    score, component_scores = musicality_score.get_musicality_score(final_wav)  # D-04
+    score, component_scores = musicality.get_musicality_score(final_wav)  # D-04
     musicality = {"score": float(score), "components": {k: float(v) for k, v in component_scores.items()}}
     song_params_obj = SongParams(
         key=key, tempo=tempo, time_signature_base=song_signatures.get("verse", "4/4"),

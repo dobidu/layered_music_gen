@@ -14,7 +14,7 @@ Pipeline exercised: sampler.SongParams (via music_gen._rng) →
 generate_song_parts (real MIDI writes) → renderer.render_stems (real FluidSynth
 subprocess) → mixer.mix_part + concat_parts (real pedalboard + pydub) →
 beats.extract_beat_times + extract_downbeat_times (real mido) →
-musicality_score.get_musicality_score → annotator.annotate → json.dump.
+musicgen.musicality.get_musicality_score → annotator.annotate → json.dump.
 
 Assertions after the pipeline runs:
   - 4 stem WAVs + 1 mix WAV + 4 MIDI files exist on disk at the expected paths.
