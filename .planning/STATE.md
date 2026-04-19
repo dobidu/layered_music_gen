@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Ready to execute
-last_updated: "2026-04-19T17:09:29.276Z"
+last_updated: "2026-04-19T17:15:34.875Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 19
-  completed_plans: 12
-  percent: 63
+  completed_plans: 13
+  percent: 68
 ---
 
 # STATE
@@ -19,12 +19,12 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 **Core value:** Every generated sample is a complete, reproducible, fully-labeled training example.
-**Current focus:** Phase 04 — mixer-soundfonts-fx-extraction (Phase 03 COMPLETE)
+**Current focus:** Phase 04 — renderer-mixer-annotator-beats-extraction
 
 ## Current position
 
-Phase: 03 (package-skeleton-sampler-generators-extraction) — COMPLETE
-Plan: 5 of 5 (all 5 plans complete)
+Phase: 04 (renderer-mixer-annotator-beats-extraction) — EXECUTING
+Plan: 2 of 7
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -80,9 +80,11 @@ Plan: 5 of 5 (all 5 plans complete)
 
 - **2026-04-19 (Plan 03-05):** Phase 3 closed. Two commits, one read-only verification: (1) `tests/test_music21_isolation.py` created with `TestMusic21DoesNotMutateGlobalRandom` — 3 sub-tests (RomanNumeral × 25 key-roman combos, Scale × 4 Major/Minor, Pitch × 4 MIDI round-trips) — all snapshot `random.getstate()` before music21 operations and assert no mutation; all pass against music21 9.9.1, converting the empirical audit into a permanent regression guard (D-24 clean-path — no `save_random_state()` wrapper needed). (2) `tests/conftest.py` deleted outright (D-16 fully applied, no fallback needed); RESEARCH Risk #3 confirmed NOT to materialize — `pyproject.toml [tool.pytest.ini_options] pythonpath = ["."]` cleanly carries repo root for both pytest and direct python invocations from repo root (`import config; import timesig; from musicgen.sampler import SongParams; from musicgen.generators.chord import generate_chord_progression` all succeed). (3) Phase-gate verification produced: pytest 371 passed (309 baseline + 33 sampler + 26 generators + 3 music21 isolation), `pip install -e '.[dev]'` succeeds, `musicgen --help` exits 0, `SongParams.sample(random.Random(42))` produces valid params, full-package AST scan across `src/musicgen/**/*.py` reports zero bare `random.<method>` (random.Random constructor + `import random` permitted), and `python music_gen.py` smoke reaches `mix_and_save` (all 7 generator parts logged through, arrangement printed) before failing at `get_random_sound_font` with environmental `IndexError: Cannot choose from an empty sequence` (0 .sf2 files in sf/beat/). One out-of-scope deferred finding logged to `.planning/phases/03-package-skeleton-sampler-generators-extraction/deferred-items.md`: pre-existing Markov melody zero-weights bug in `src/musicgen/generators/melody.py:110` (verified in repo history at commit 94c19a0, NOT a Phase-3 regression; fix path belongs to Phase 4 mixer refactor or Phase 5 seed discipline). R-X1 / R-X2 / R-X3 all closed. Phase 3 architecturally complete: `src/musicgen/` is an installable package with rng-injected sampler + generator layer, music21 is a regression-guarded dependency, conftest shim is history.
 
+- **2026-04-19 (Plan 04-00):** Wave 0 infrastructure complete. `mido>=1.3.3` added to `pyproject.toml [project].dependencies` (RESEARCH correction #3: not a transitive dep of midi2audio; beats.py needs it for MIDI-tick extraction). `markers = [slow, integration]` added to `[tool.pytest.ini_options]` (no `--strict-markers` yet; Phase 6+ concern). `.venv/bin/pip install -e '.[dev]'` refreshed: mido 1.3.3 installed, `mido.bpm2tempo` and `mido.tick2second` both callable. 6 test-file stubs created (tests/test_beats.py, test_renderer.py, test_mixer.py, test_annotator.py, test_no_bare_random_in_package.py, test_integration_full_generation.py) — all use `pytest.skip(allow_module_level=True)`; suite: 371 passed, 6 skipped. Commits: bde1e29 (pyproject.toml), 01f3290 (6 stubs).
+
 ## Next command
 
-Phase 04 CONTEXT captured via `--auto`. `_auto_chain_active=true`, so auto-advancing to `/gsd-plan-phase 4 --auto`. Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-CONTEXT.md`.
+Resume Phase 04 at Plan 04-01 (Wave 1 — beats.py extraction). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-01-*.md`.
 
 ---
-*Last updated: 2026-04-19 after `/gsd-discuss-phase 4 --auto` (Phase 4 context gathered, 33 decisions across 13 gray areas, auto-advance to plan-phase next).*
+*Last updated: 2026-04-19 after Plan 04-00 (Wave 0 infrastructure) execution complete. Plan 2 of 7 in Phase 04.*

@@ -119,10 +119,10 @@ Plans:
 
 **Exit criteria:** `mix_and_save` is < 50 lines of pure orchestration. Integration test produces mix audio whose stems sum to the mix within a loose tolerance (assertion is tightened in Phase 5). Beat timestamps match MIDI ticks rather than theoretical grid.
 
-**Plans:** 7 plans
+**Plans:** 1/7 plans executed
 
 Plans:
-- [ ] 04-00-wave-0-infrastructure-PLAN.md — Wave 0: add mido>=1.3.3 dep + pytest markers + scaffold 6 new test files. (R-X4, R-X5, R-X6, R-X7, R-X8)
+- [x] 04-00-wave-0-infrastructure-PLAN.md — Wave 0: add mido>=1.3.3 dep + pytest markers + scaffold 6 new test files. (R-X4, R-X5, R-X6, R-X7, R-X8)
 - [ ] 04-01-beats-module-PLAN.md — Create src/musicgen/beats.py with beat_duration + extract_beat_times (mido.tick2second) + extract_downbeat_times (time-grid, RESEARCH correction #1); re-export beat_duration from generators/beat.py (D-21); tests/test_beats.py with 3 swing cases. (R-X7)
 - [ ] 04-02-renderer-module-PLAN.md — Create src/musicgen/renderer.py with FLUIDSYNTH_VERSION + RenderResult + pick_soundfonts(cfg, rng) + render_stems via ThreadPoolExecutor(max_workers=4); tests/test_renderer.py with mocked FluidSynth. (R-X4)
 - [ ] 04-03-mixer-module-PLAN.md — Create src/musicgen/mixer.py absorbing create_effect + generate_pedalboard (→ build_fx_boards) + apply_fx_to_layer + pedalboard_info_json + _lin_to_db (unnested); add compute_layer_mask + _make_silent_stem (stereo 44.1kHz, RESEARCH correction #2) + MixResult + mix_part + concat_parts; tests/test_mixer.py with seeded-RNG + D-11 FX-on-all-layers + R-S4 preservation. (R-X5)
