@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Ready to execute
-last_updated: "2026-04-19T17:28:28.814Z"
+last_updated: "2026-04-19T17:41:29.064Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 19
-  completed_plans: 15
-  percent: 79
+  completed_plans: 16
+  percent: 84
 ---
 
 # STATE
@@ -24,7 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 04 (renderer-mixer-annotator-beats-extraction) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -86,9 +86,11 @@ Plan: 4 of 7
 
 - **2026-04-19 (Plan 04-02):** `src/musicgen/renderer.py` created — FluidSynth wrapper module (R-X4). Key decisions: (1) `FLUIDSYNTH_VERSION` captured inside `try/except Exception` block (D-07) — falls back to `"unknown"` on CI machines without FluidSynth binary, never raises at import. (2) `pick_soundfonts(cfg, rng)` uses `sorted(os.listdir(sf_dir))` before `rng.choice()` — sort ensures cross-machine determinism regardless of filesystem order (critical for Phase 5 golden-seed baselines). (3) `RenderResult` frozen dataclass with 5 fields: `stem_paths`, `sample_rate`, `channels`, `duration_seconds`, `fluidsynth_version` (D-02). (4) `render_stems` dispatches 4 per-layer stems via `ThreadPoolExecutor(max_workers=4)`, reads duration from first stem WAV via `AudioSegment.from_wav` (D-06/D-09). (5) Zero bare `random.*` calls — AST verified (D-17). 16 new tests in `tests/test_renderer.py` across 4 classes (TestFluidSynthVersion, TestRenderResult, TestPickSoundfonts, TestRenderStems) with mocked `FluidSynth.midi_to_audio`. Full suite: 423 passed, 4 skipped. Commits: 6b25c10 (RED — tests), 859a1ca (GREEN — renderer.py).
 
+- **2026-04-19 (Plan 04-03):** `src/musicgen/mixer.py` created — FX + overlay + layer-mask + concat module (R-X5). Key decisions: (1) `_make_silent_stem` uses `frame_rate=sample_rate + .set_channels(channels)` defaulting to 44100/2 — stereo 44.1kHz match required (RESEARCH correction #2) or pydub overlay breaks and Phase 5 R-P2 stems-sum-to-mix assertion would fail. (2) D-11 preserved verbatim: FX applied to ALL 4 layers unconditionally before mask check — moving apply_fx_to_layer inside the if-branch would change RNG draw count and break Phase 5 golden-seed baseline. (3) R-S4 gain/pan fix carried verbatim with 4 explicit per-layer calls (not a loop) matching `music_gen.py:287-294` — explicit calls satisfy grep regression guard (>= 4 apply_gain lines) and make the fix visible. (4) `build_fx_boards` / `compute_layer_mask` raise ValueError if rng=None (D-17 guard). (5) `MixResult` frozen dataclass with 6 fields (D-02). (6) `test_silent_stem_for_masked_off_layer` uses `os.path.basename()` for `_silent` check — pytest embeds test name in tmp_path dirname which contains `_silent_stem`, causing false positives on full path check. 27 new tests (8 classes), full suite: 450 passed, 3 skipped. Zero bare `random.*` AST verified. Commits: 94d4906 (mixer.py), b1da9c6 (tests).
+
 ## Next command
 
-Resume Phase 04 at Plan 04-03 (Wave 3 — mixer.py). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-03-*.md`.
+Resume Phase 04 at Plan 04-04 (Wave 4 — annotator.py). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-04-*.md`.
 
 ---
-*Last updated: 2026-04-19 after Plan 04-02 (Wave 2 — renderer module) execution complete. Plan 4 of 7 in Phase 04.*
+*Last updated: 2026-04-19 after Plan 04-03 (Wave 3 — mixer module) execution complete. Plan 5 of 7 in Phase 04.*
