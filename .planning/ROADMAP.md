@@ -119,7 +119,7 @@ Plans:
 
 **Exit criteria:** `mix_and_save` is < 50 lines of pure orchestration. Integration test produces mix audio whose stems sum to the mix within a loose tolerance (assertion is tightened in Phase 5). Beat timestamps match MIDI ticks rather than theoretical grid.
 
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans executed — PHASE COMPLETE 2026-04-19
 
 Plans:
 - [x] 04-00-wave-0-infrastructure-PLAN.md — Wave 0: add mido>=1.3.3 dep + pytest markers + scaffold 6 new test files. (R-X4, R-X5, R-X6, R-X7, R-X8)
@@ -128,7 +128,7 @@ Plans:
 - [x] 04-03-mixer-module-PLAN.md — Create src/musicgen/mixer.py absorbing create_effect + generate_pedalboard (→ build_fx_boards) + apply_fx_to_layer + pedalboard_info_json + _lin_to_db (unnested); add compute_layer_mask + _make_silent_stem (stereo 44.1kHz, RESEARCH correction #2) + MixResult + mix_part + concat_parts; tests/test_mixer.py with seeded-RNG + D-11 FX-on-all-layers + R-S4 preservation. (R-X5)
 - [x] 04-04-annotator-module-PLAN.md — Create src/musicgen/annotator.py with annotate(...) pure function producing R-P4 schema (Phase-4 fills + Phase-5 None semantics per D-15/D-16); tests/test_annotator.py fixture-driven golden-dict + purity contract. (R-X6)
 - [x] 04-05-orchestrator-collapse-and-ast-guard-PLAN.md — Collapse music_gen.py from 523 to 199 lines: delete 9 audio functions (mix_and_save + 8 helpers); rewrite create_song to chain renderer → mixer → beats → annotator; delete beat_anotator.py outright (D-03); add tests/test_no_bare_random_in_package.py AST guard (D-17/D-31). 504 tests pass. (R-X4, R-X5, R-X6, R-X7) — **COMPLETE 2026-04-19** (commits 062c6b3, fb71998)
-- [ ] 04-06-e2e-integration-test-PLAN.md — Create tests/test_integration_full_generation.py with @pytest.mark.slow E2E test guarded on fluidsynth binary + sf2 pool; exercises full pipeline; asserts 4 stems + 1 mix + 4 MIDIs + R-P4 dict + MIDI reproducibility. (R-X8)
+- [x] 04-06-e2e-integration-test-PLAN.md — Create tests/test_integration_full_generation.py with @pytest.mark.slow E2E test guarded on fluidsynth binary + sf2 pool; exercises full pipeline; asserts 4 stems + 1 mix + 4 MIDIs + R-P4 dict + MIDI reproducibility. (R-X8) — **COMPLETE 2026-04-19** (commit 69cd990)
 
 ---
 
