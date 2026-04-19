@@ -57,6 +57,34 @@ class Config:
         default_factory=lambda: dict(DEFAULT_BEAT_ROLL_PATTERN_FILES)
     )
 
+    # --- Phase 5 fields (D-09, D-21, D-25, D-27) ---
+    dataset_root: str = field(
+        default_factory=lambda: os.path.join(DEFAULT_PROJECT_ROOT, "dataset")
+    )
+    global_seed: Optional[int] = None
+    sample_index: int = 0
+    split_ratios: Tuple[float, float, float] = (0.8, 0.1, 0.1)
+    sum_of_stems_epsilon: float = 1e-3
+    keep_working_dirs: bool = False
+    workers: Optional[int] = None  # Phase 6 reserved
+
+    def __post_init__(self):
+        """Phase 5 field validation (D-27).
+
+        global_seed=None is PERMITTED here — api.generate raises when
+        it is actually needed (D-21). Config is usable for non-generation
+        concerns (e.g. soundfont pool inspection) without a seed.
+        """
+        if abs(sum(self.split_ratios) - 1.0) > 1e-9:
+            raise ValueError(
+                f"split_ratios must sum to 1.0, got "
+                f"{sum(self.split_ratios)} for {self.split_ratios}"
+            )
+        if any(r < 0 for r in self.split_ratios):
+            raise ValueError(
+                f"split_ratios must be non-negative, got {self.split_ratios}"
+            )
+
     def sf_layer_dir(self, layer: str) -> str:
         """Return the on-disk directory for a single soundfont layer."""
         return os.path.join(self.sf_dir, layer)
@@ -84,6 +112,9 @@ class Config:
         root_env = os.environ.get("MUSICGEN_PROJECT_ROOT")
         if root_env:
             cfg.project_root = os.path.abspath(root_env)
+        dataset_env = os.environ.get("MUSICGEN_DATASET_ROOT")
+        if dataset_env:
+            cfg.dataset_root = os.path.abspath(dataset_env)  # T-02-01 mitigation
 
         # cli layer (D-02 top layer; framework-agnostic — avoids typer dep in Phase 2)
         if cli_overrides:
