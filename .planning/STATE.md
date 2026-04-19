@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Executing Phase 03
-last_updated: "2026-04-18T20:36:30Z"
+status: Ready to execute
+last_updated: "2026-04-19T07:13:06Z"
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 12
-  completed_plans: 10
-  percent: 83
+  completed_plans: 12
+  percent: 100
 ---
 
 # STATE
@@ -19,18 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 **Core value:** Every generated sample is a complete, reproducible, fully-labeled training example.
-**Current focus:** Phase 03 — package-skeleton-sampler-generators-extraction
+**Current focus:** Phase 04 — mixer-soundfonts-fx-extraction (Phase 03 COMPLETE)
 
 ## Current position
 
-Phase: 03 (package-skeleton-sampler-generators-extraction) — EXECUTING
-Plan: 4 of 5 (Plans 03-01 + 03-02 + 03-03 complete)
+Phase: 03 (package-skeleton-sampler-generators-extraction) — COMPLETE
+Plan: 5 of 5 (all 5 plans complete)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: 03-package-skeleton-sampler-generators-extraction — Waves 1–3 executed 2026-04-18
-- Resume file: .planning/phases/03-package-skeleton-sampler-generators-extraction/03-04-PLAN.md (next)
-- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete; Phase 03 Wave 3 (Plan 03-03 — sampler extraction into `src/musicgen/sampler.py` with SongParams frozen dataclass + rng injection) complete, 342 tests pass (309 baseline + 33 new sampler tests), R-X2 closed. Ready for Wave 4 (Plan 03-04 — generators extraction, R-X3).
+- Active phase: Phase 03 complete 2026-04-19; Phase 04 next
+- Resume file: .planning/phases/04-*/ (pending Phase 4 init)
+- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete; Phase 03 Wave 3 (Plan 03-03 — sampler extraction) complete; Phase 03 Wave 4 (Plan 03-04 — generators extraction, 368 tests, R-X3 closed) complete; Phase 03 Wave 5 (Plan 03-05 — music21 isolation regression test + tests/conftest.py deletion + phase-gate verification) complete, 371 tests pass, zero bare random.* across src/musicgen/, R-X1/R-X2/R-X3 all verified. Phase 3 architecturally closed.
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -76,9 +76,11 @@ Plan: 4 of 5 (Plans 03-01 + 03-02 + 03-03 complete)
 
 - **2026-04-18 (Plan 03-03):** All 9 sampler symbols extracted to `src/musicgen/sampler.py` (293 lines): SongParams @dataclass(frozen=True) with 9 fields (D-20) + SongParams.sample classmethod builder (D-21) + 7 rng-aware free functions + validate_measures_dict. RNG draw order inside SongParams.sample preserved verbatim from pre-refactor generate_song (key → tempo → time_sig_base → swing → arrangement → loop(measures)) per RESEARCH Risk #2 — this is Phase 5's golden determinism baseline. AST static guard (`tests/test_sampler.py::test_no_bare_random_in_sampler`) proves zero bare `random.*` in sampler.py (25 call sites rewritten to `rng.*`; `random.Random` constructor/type references permitted). 33 new seeded-determinism tests across 3 test classes; full suite 309 → 342 passing. `music_gen.py` rewritten as shim (net -117 lines): 8 inline defs deleted, 9 symbols re-imported from `musicgen.sampler`, `_rng = random.Random()` threaded through 6 call sites (1 in create_song, 5 in generate_song), `validate_measures = validate_measures_dict` back-compat alias preserves legacy call-site compatibility (D-08). Kept intact per D-05/D-06: mix_and_save, create_song outer, generate_song outer, generate_song_parts, generate_pedalboard, apply_fx_to_layer, create_effect, soundfont/levels helpers, __main__ guard, 10 time-sig wrappers. 19 `random.*` call sites remain in music_gen.py inside generator-layer and mix-layer functions — Phase 4 scope per RESEARCH Risk #5 (NOT rewritten this phase). Smoke test `python music_gen.py` reaches mix_and_save before failing on environmental ffmpeg/soundfont absence — confirms sampler layer wiring works end-to-end. Two plan-spec grep observations filed (acceptance `grep -c "^def generate_" >= 7` is off-by-one; `\(_rng` pattern undercounts rng-last signatures) — no code deviations. R-X2 closed.
 
+- **2026-04-19 (Plan 03-05):** Phase 3 closed. Two commits, one read-only verification: (1) `tests/test_music21_isolation.py` created with `TestMusic21DoesNotMutateGlobalRandom` — 3 sub-tests (RomanNumeral × 25 key-roman combos, Scale × 4 Major/Minor, Pitch × 4 MIDI round-trips) — all snapshot `random.getstate()` before music21 operations and assert no mutation; all pass against music21 9.9.1, converting the empirical audit into a permanent regression guard (D-24 clean-path — no `save_random_state()` wrapper needed). (2) `tests/conftest.py` deleted outright (D-16 fully applied, no fallback needed); RESEARCH Risk #3 confirmed NOT to materialize — `pyproject.toml [tool.pytest.ini_options] pythonpath = ["."]` cleanly carries repo root for both pytest and direct python invocations from repo root (`import config; import timesig; from musicgen.sampler import SongParams; from musicgen.generators.chord import generate_chord_progression` all succeed). (3) Phase-gate verification produced: pytest 371 passed (309 baseline + 33 sampler + 26 generators + 3 music21 isolation), `pip install -e '.[dev]'` succeeds, `musicgen --help` exits 0, `SongParams.sample(random.Random(42))` produces valid params, full-package AST scan across `src/musicgen/**/*.py` reports zero bare `random.<method>` (random.Random constructor + `import random` permitted), and `python music_gen.py` smoke reaches `mix_and_save` (all 7 generator parts logged through, arrangement printed) before failing at `get_random_sound_font` with environmental `IndexError: Cannot choose from an empty sequence` (0 .sf2 files in sf/beat/). One out-of-scope deferred finding logged to `.planning/phases/03-package-skeleton-sampler-generators-extraction/deferred-items.md`: pre-existing Markov melody zero-weights bug in `src/musicgen/generators/melody.py:110` (verified in repo history at commit 94c19a0, NOT a Phase-3 regression; fix path belongs to Phase 4 mixer refactor or Phase 5 seed discipline). R-X1 / R-X2 / R-X3 all closed. Phase 3 architecturally complete: `src/musicgen/` is an installable package with rng-injected sampler + generator layer, music21 is a regression-guarded dependency, conftest shim is history.
+
 ## Next command
 
-Phase 03 Waves 1–3 complete. Next: `/gsd-execute-phase 3 --resume` → Wave 4 (Plan 03-04 — generators extraction into `src/musicgen/generators/{chord,melody,bassline,beat}.py` with injected `rng`, R-X3).
+Phase 03 complete. Next: `/gsd-plan-phase 4` → Phase 4 init (mixer/soundfonts/FX extraction; pre-existing Markov melody zero-weights bug in `generators/melody.py:110` documented in Phase 3 deferred-items.md — consider scheduling fix here).
 
 ---
-*Last updated: 2026-04-18 after Plan 03-03 (sampler extraction into src/musicgen/sampler.py with SongParams frozen dataclass + rng injection, R-X2 closed) execution.*
+*Last updated: 2026-04-19 after Plan 03-05 (music21 RNG-isolation regression guard + conftest.py deletion + phase-gate verification; Phase 3 complete) execution.*
