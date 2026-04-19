@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Ready to execute
-last_updated: "2026-04-19T17:22:08.977Z"
+last_updated: "2026-04-19T17:28:28.814Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 19
-  completed_plans: 14
-  percent: 74
+  completed_plans: 15
+  percent: 79
 ---
 
 # STATE
@@ -24,7 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 04 (renderer-mixer-annotator-beats-extraction) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -84,9 +84,11 @@ Plan: 3 of 7
 
 - **2026-04-19 (Plan 04-01):** `src/musicgen/beats.py` created — authoritative MIDI-tick beat/downbeat extraction module (R-X7). Key decisions: (1) `extract_downbeat_times` uses TIME-GRID algorithm (`spec.numerator * beat_slot_s` per measure), NOT the `beat_times[::numerator]` stride-slice described in D-20 — RESEARCH correction #1 confirmed by inspecting all 6 beat pattern files (4/4 `intro: 0,42,38,0` has 2 non-zero entries, 12/8 has 9-10, both fail under stride-slice). (2) `beat_times` parameter retained in signature for API symmetry / future cross-check. (3) D-21 re-export applied: `generators/beat.py` body of `beat_duration` replaced by `from musicgen.beats import beat_duration` — both import paths yield the same function object (identity test passes). 36 new tests in `tests/test_beats.py` covering TestBeatDuration (10), TestExtractBeatTimes (3), TestSwingCases (5 — swing=0.5/0.66/0.75), TestExtractDownbeatTimes (13 — all 6 time signatures, grid math, input-independence, 12/8). Full suite: 407 passed, 5 skipped. Zero bare `random.*` in beats.py. Commits: 40d9e32 (beats.py), d1019f3 (re-export), ba7c40d (tests).
 
+- **2026-04-19 (Plan 04-02):** `src/musicgen/renderer.py` created — FluidSynth wrapper module (R-X4). Key decisions: (1) `FLUIDSYNTH_VERSION` captured inside `try/except Exception` block (D-07) — falls back to `"unknown"` on CI machines without FluidSynth binary, never raises at import. (2) `pick_soundfonts(cfg, rng)` uses `sorted(os.listdir(sf_dir))` before `rng.choice()` — sort ensures cross-machine determinism regardless of filesystem order (critical for Phase 5 golden-seed baselines). (3) `RenderResult` frozen dataclass with 5 fields: `stem_paths`, `sample_rate`, `channels`, `duration_seconds`, `fluidsynth_version` (D-02). (4) `render_stems` dispatches 4 per-layer stems via `ThreadPoolExecutor(max_workers=4)`, reads duration from first stem WAV via `AudioSegment.from_wav` (D-06/D-09). (5) Zero bare `random.*` calls — AST verified (D-17). 16 new tests in `tests/test_renderer.py` across 4 classes (TestFluidSynthVersion, TestRenderResult, TestPickSoundfonts, TestRenderStems) with mocked `FluidSynth.midi_to_audio`. Full suite: 423 passed, 4 skipped. Commits: 6b25c10 (RED — tests), 859a1ca (GREEN — renderer.py).
+
 ## Next command
 
-Resume Phase 04 at Plan 04-02 (Wave 2 — renderer.py). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-02-*.md`.
+Resume Phase 04 at Plan 04-03 (Wave 3 — mixer.py). Resume file: `.planning/phases/04-renderer-mixer-annotator-beats-extraction/04-03-*.md`.
 
 ---
-*Last updated: 2026-04-19 after Plan 04-01 (Wave 1 — beats module) execution complete. Plan 3 of 7 in Phase 04.*
+*Last updated: 2026-04-19 after Plan 04-02 (Wave 2 — renderer module) execution complete. Plan 4 of 7 in Phase 04.*
