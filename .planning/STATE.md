@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
 status: Phase 05 planned — ready to execute
-last_updated: "2026-04-19T19:45:00.000Z"
+last_updated: "2026-04-19T21:16:02Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 25
-  completed_plans: 19
-  percent: 76
+  completed_plans: 20
+  percent: 80
 ---
 
 # STATE
@@ -24,7 +24,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 ## Current position
 
 Phase: 5
-Plan: Planned — 6 plans across 5 waves (Wave 0 → Wave 4 in frontmatter indexing)
+Plan: 05-01 complete (Wave 0 test infrastructure); 05-02 next (Wave 1 — seeds.py)
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
@@ -98,7 +98,13 @@ Plan: Planned — 6 plans across 5 waves (Wave 0 → Wave 4 in frontmatter index
 
 ## Next command
 
-Phase 05 planned. Auto-chain flag active → auto-advancing to `/gsd-execute-phase 5 --auto --no-transition`. Resume file: `.planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-01-PLAN.md`.
+Phase 05 Wave 0 complete (Plan 05-01 sequential executor landed 2 task commits + SUMMARY). Auto-chain flag active → next plan is `/gsd-execute-plan 5 2` (Plan 05-02, Wave 1 — src/musicgen/seeds.py + assign_split). Resume file: `.planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-02-PLAN.md`.
 
 ---
-*Last updated: 2026-04-19 after `/gsd-plan-phase 5 --auto` produced 6 PLAN.md files via research → pattern-mapping → planner → checker pipeline. Checker: 0 blockers, 3 cosmetic warnings (wave-label prose drift, Plan 05-05 task count 4, CONTEXT.md line 246 prose contradiction — all non-blocking). Coverage: R-P1..R-P8, R-Q3 all covered by ≥2 plans.*
+
+## Recent decisions (Phase 5 Wave 0)
+
+- **2026-04-19 (Plan 05-01):** Wave 0 test infrastructure landed via sequential executor on main tree (no worktree). Two atomic commits: (1) `67a04e4` — 8 files created (tests/conftest.py registering `--regen-goldens` pytest flag per D-32; 6 Wave 0 test stubs using `pytest.skip(allow_module_level=True)` inheriting Phase 4 Wave 0 idiom; tests/fixtures/determinism/README.md as git-trackable dir marker documenting Wave 5's 7-file golden layout). (2) `bc925b5` — tests/test_no_bare_random_in_package.py widened: `_bare_random_calls` allow-list broadened from `{"Random"}` → `{"Random", "getstate", "setstate"}` per D-42 so Wave 1's `seeds.save_random_state()` context manager (D-20) passes the guard; meta-test renamed `test_package_scan_covers_all_phase4_modules` → `test_package_scan_covers_all_package_modules`; `expected_present` set expanded by 5 Phase 5 module basenames (`seeds.py, writer.py, manifest.py, api.py, musicality.py`); `@pytest.mark.xfail(strict=False, reason="Phase 5 modules land in Waves 1-4 ...")` added — Plan 05-05 removes the xfail once api.py lands. Full suite: 503 passed, 8 skipped (6 new stubs + 2 prior), 1 xfailed (meta-test, expected). Zero regressions vs 504-passed baseline — the 1-passed → 1-xfailed flip on the meta-test is accounted for in the net-pass count. `.venv/bin/pytest --help | grep regen-goldens` confirms flag registration. All downstream Phase 5 plans unblocked: they can edit-in-place rather than cold-create test files. No deviations from plan.
+
+---
+*Last updated: 2026-04-19 after Plan 05-01 sequential execution. Progress: 19 → 20 / 25 plans (80%). Next: Plan 05-02 (Wave 1 — seeds.py + assign_split).*

@@ -156,7 +156,7 @@ Plans:
 **Plans:** 6 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Wave 0: test infrastructure (7 test stubs + conftest.py --regen-goldens flag + AST guard widens allow-list for random.getstate/setstate + xfail meta-test for future expected_present modules). (R-P1..R-P8, R-Q3 forward-guard)
+- [x] 05-01-PLAN.md — Wave 0: test infrastructure (6 Wave 0 test stubs + tests/conftest.py --regen-goldens flag + tests/fixtures/determinism/README.md dir marker + AST guard widens allow-list for random.getstate/setstate + xfail meta-test adds seeds/writer/manifest/api/musicality to expected_present). (R-P1..R-P8, R-Q3 forward-guard) — **COMPLETE 2026-04-19** (commits 67a04e4, bc925b5)
 - [ ] 05-02-PLAN.md — Wave 1: src/musicgen/seeds.py (derive_sample_seed/make_rngs/save_random_state/assign_split per D-17/D-18/D-20/D-26 verbatim) + fully-populated test_seeds.py + test_split.py. (R-P6, R-P7)
 - [ ] 05-03-PLAN.md — Wave 1: git mv musicality_score.py → src/musicgen/musicality.py (D-03; closes Phase 3 D-11 / Phase 4 D-04 deferral); rewrite single import site in music_gen.py. (R-P4)
 - [ ] 05-04-PLAN.md — Wave 2: src/musicgen/manifest.py (ManifestWriter, threading.Lock default, sentinel-only is_sample_complete) + src/musicgen/writer.py (atomic per-sample layout, absolute-tick MIDI concat, int32 sum-of-stems assertion, deep-copy path rewrite) + config.py +7 fields + __post_init__ validation; populate test_manifest.py + test_writer.py + extend test_config.py. (R-P1, R-P2, R-P3, R-P4, R-P5, R-P6)
