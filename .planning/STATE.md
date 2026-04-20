@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Phase 05 COMPLETE (all 25 plans landed) — ready for verification gates
-last_updated: "2026-04-20T14:50:00Z"
+status: Phase 05 COMPLETE — verified (9/9 must-haves; 2 deferred operator UAT items in 05-HUMAN-UAT.md)
+last_updated: "2026-04-20T01:35:00Z"
 progress:
   total_phases: 7
   completed_phases: 5
