@@ -1,4 +1,4 @@
-"""Integration test (R-X8): full Phase 4 pipeline end-to-end with real FluidSynth binary.
+"""Integration test (R-X8): full Phase 4+5 pipeline end-to-end with real FluidSynth binary.
 
 @pytest.mark.slow — ONLY runs when pytest is invoked with ``-m slow`` (or no
 marker filter on a machine with FluidSynth). CI's default
@@ -10,19 +10,21 @@ Skip conditions (ALL apply at module level via pytestmark):
      ``FileNotFoundError`` otherwise, which is an environment issue not a
      code regression (same as the Phase 3 closure smoke test).
 
-Pipeline exercised: sampler.SongParams (via music_gen._rng) →
-generate_song_parts (real MIDI writes) → renderer.render_stems (real FluidSynth
-subprocess) → mixer.mix_part + concat_parts (real pedalboard + pydub) →
+Pipeline exercised: api.generate (Plan 05-05) →
+sampler.SongParams → generate_chord/melody/bassline/beat (real MIDI writes) →
+renderer.render_stems (real FluidSynth subprocess) →
+mixer.mix_part + concat_parts (real pedalboard + pydub) →
 beats.extract_beat_times + extract_downbeat_times (real mido) →
-musicgen.musicality.get_musicality_score → annotator.annotate → json.dump.
+musicgen.musicality.get_musicality_score → annotator.annotate →
+writer.write_sample (atomic per-sample layout) → manifest append.
 
 Assertions after the pipeline runs:
-  - 4 stem WAVs + 1 mix WAV + 4 MIDI files exist on disk at the expected paths.
-  - Annotation dict has all Phase-4 fill fields non-None (D-15).
-  - Annotation dict has Phase-5 TBD fields as None (D-16).
+  - 4 stem WAVs + 1 mix WAV + 4 MIDI files exist on disk in the per-sample dir.
+  - sample.json has all Phase-4 fill fields non-None (D-15).
+  - sample.json has Phase-5 filled fields (seed, musicgen_version, split) non-None.
+  - sample.json has pre_roll_offset_seconds as None (R-P9 Phase 6).
   - analysis_failed is OMITTED on success (D-16 clarification).
-  - MIDI files are bit-identical across two runs with the same seed (WAV golden
-    test is Phase 5's scope; Phase 4 only asserts MIDI reproducibility).
+  - MIDI files are bit-identical across two runs with the same seed.
 """
 from __future__ import annotations
 
@@ -58,9 +60,9 @@ def _all_sf2_layers_have_files() -> bool:
 sf2_pool_ready = _all_sf2_layers_have_files()
 
 # Module-level mark: both classes require FluidSynth + full sf2 pool.
-# TestMidiReproducibility calls create_song() which runs renderer.render_stems
-# (FluidSynth subprocess) before MIDI paths are accessible, so it also needs
-# the binary present.
+# TestMidiReproducibility calls musicgen.generate() which runs
+# renderer.render_stems (FluidSynth subprocess) before MIDI paths are
+# accessible, so it also needs the binary present.
 pytestmark = [
     pytest.mark.slow,
     pytest.mark.skipif(
@@ -73,84 +75,60 @@ pytestmark = [
     ),
 ]
 
-# Absolute path to chord_patterns.txt at repo root — the test chdirs to tmp_path
-# so a bare filename would not resolve. Path(__file__).parent.parent points to
-# the repo root where chord_patterns.txt lives (alongside music_gen.py).
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_CHORD_PAT_FILE = str(_REPO_ROOT / "chord_patterns.txt")
+
+_LAYERS = ("beat", "melody", "harmony", "bassline")
 
 
 # ---------- The E2E test ----------
 
 class TestFullGenerationPipeline:
-    """One-part smoke test: seeded create_song produces all artifacts + valid annotation."""
+    """Smoke test: seeded musicgen.generate produces all artifacts + valid sample.json."""
 
-    def test_one_part_full_pipeline(self, tmp_path, monkeypatch):
-        """One-part smoke test: seeded create_song produces all artifacts + valid annotation.
+    def test_one_part_full_pipeline(self, tmp_path):
+        """Seeded musicgen.generate produces all artifacts + valid sample.json.
 
         Uses the real FluidSynth binary, real pedalboard FX, real pydub overlay,
-        real mido tick extraction. Runs inside tmp_path (monkeypatch.chdir) so
-        the per-song directory (created by generate_* and create_song) is
-        isolated from the repo root.
+        real mido tick extraction. Writes under tmp_path (no chdir needed — the
+        api.generate pipeline uses tempfile.mkdtemp for working dirs and the
+        dataset_root param for final layout).
         """
-        monkeypatch.chdir(tmp_path)
+        from musicgen import Config, generate
 
-        import music_gen
+        result = generate(Config(
+            global_seed=1, sample_index=0, dataset_root=str(tmp_path),
+        ))
 
-        # Seed the module-level RNG for reproducibility. Phase 5 R-P7 will
-        # replace this with derive_sample_seed; here we seed directly.
-        music_gen._rng.seed(42)
-
-        # Minimal single-part 4/4 song: 1 part ("intro"), 2 measures.
-        # Keeps the FluidSynth render time to a few seconds.
-        song_name = "intgen"
-        signatures = {"intro": "4/4"}
-        measures = {"intro": 2}
-
-        annotation = music_gen.create_song(
-            key="C",
-            tempo=120,
-            song_signatures=signatures,
-            measures=measures,
-            name=song_name,
-            chord_pat_file=_CHORD_PAT_FILE,
-            swing_amount=0.5,
+        # ---- Top-level status ----
+        assert result.status == "ok", (
+            f"expected status='ok', got {result.status!r}"
         )
 
-        # ---- Artifact layout assertions ----
-        song_dir = Path(tmp_path) / song_name
-        assert song_dir.is_dir(), f"expected song dir at {song_dir}"
+        # ---- Artifact layout assertions (D-05 per-sample dir) ----
+        sample_dir = Path(result.sample_dir)
+        assert sample_dir.is_dir(), f"expected sample dir at {sample_dir}"
 
-        # Mix WAV exists
-        mix_wav = song_dir / f"{song_name}.wav"
+        mix_wav = sample_dir / "mix.wav"
         assert mix_wav.is_file(), f"mix WAV missing at {mix_wav}"
         assert mix_wav.stat().st_size > 0, "mix WAV is empty"
 
-        # Annotation JSON exists
-        annotation_json = song_dir / f"{song_name}.json"
-        assert annotation_json.is_file(), f"annotation JSON missing at {annotation_json}"
+        sample_json_path = sample_dir / "sample.json"
+        assert sample_json_path.is_file(), f"sample.json missing at {sample_json_path}"
 
-        # Per-part subdir contains stems (post-FX .wav or _silent.wav for masked layers).
-        # create_song writes out_dir = os.path.join(name, f"{name}-{part}").
-        part_subdir = song_dir / f"{song_name}-intro"
-        assert part_subdir.is_dir(), f"expected part subdir at {part_subdir}"
+        # 4 stems + 4 MIDIs in stems/ and midi/ subdirs.
+        for layer in _LAYERS:
+            stem_wav = sample_dir / "stems" / f"{layer}.wav"
+            assert stem_wav.is_file(), f"stem WAV missing at {stem_wav}"
+            assert stem_wav.stat().st_size > 0, f"stem WAV empty: {stem_wav}"
 
-        stem_files = list(part_subdir.rglob("*.wav"))
-        # At least 4 stems (post-FX or silent); renderer also writes raw stems first.
-        assert len(stem_files) >= 4, (
-            f"expected >= 4 stem WAVs in {part_subdir}, found {len(stem_files)}: "
-            f"{[s.name for s in stem_files]}"
-        )
+            midi_file = sample_dir / "midi" / f"{layer}.mid"
+            assert midi_file.is_file(), f"MIDI missing at {midi_file}"
+            assert midi_file.stat().st_size > 0, f"MIDI empty: {midi_file}"
 
-        # MIDI files: 4 per part (beat, melody, harmony, bassline)
-        midi_files = list(part_subdir.rglob("*.mid"))
-        assert len(midi_files) >= 4, (
-            f"expected >= 4 MIDI files in {part_subdir}, found {len(midi_files)}: "
-            f"{[m.name for m in midi_files]}"
-        )
-
-        # ---- Annotation dict shape assertions (D-15) ----
+        # ---- sample.json shape assertions ----
+        annotation = json.loads(sample_json_path.read_text())
         assert isinstance(annotation, dict)
+
+        # Phase-4 fill fields must be present + non-None (D-15).
         phase4_fields = [
             "key", "mode", "tempo_bpm", "time_signature", "time_signatures_per_part",
             "measures_per_part", "swing", "song_arrangement", "chord_progression",
@@ -159,86 +137,68 @@ class TestFullGenerationPipeline:
             "mix", "stems", "midi",
         ]
         for field in phase4_fields:
-            assert field in annotation, f"R-P4 field {field!r} missing from annotator output"
+            assert field in annotation, f"R-P4 field {field!r} missing from sample.json"
             assert annotation[field] is not None, (
                 f"R-P4 field {field!r} is None (Phase 4 must fill)"
             )
 
-        # ---- Phase 5 TBD fields present as None (D-16) ----
-        for tbd in ("seed", "musicgen_version", "split", "pre_roll_offset_seconds"):
-            assert tbd in annotation, (
-                f"Phase-5 TBD field {tbd!r} missing (D-16: must be present as None)"
-            )
-            assert annotation[tbd] is None, (
-                f"Phase-5 TBD field {tbd!r} should be None, got {annotation[tbd]!r}"
-            )
+        # Phase-5 FILLED fields (D-22 — api.generate populates these).
+        assert annotation["seed"] == result.seed, (
+            f"sample.json seed {annotation['seed']!r} != result.seed {result.seed!r}"
+        )
+        assert annotation["musicgen_version"] in ("0.1.0", "0.1.0+uninstalled")
+        assert annotation["split"] in ("train", "valid", "test")
+
+        # Phase-5 TBD field (pre_roll_offset_seconds) stays None per D-22 — R-P9 is Phase 6.
+        assert annotation.get("pre_roll_offset_seconds") is None, (
+            f"pre_roll_offset_seconds should be None (Phase 6 fills), "
+            f"got {annotation.get('pre_roll_offset_seconds')!r}"
+        )
 
         # D-16 clarification: analysis_failed is OMITTED on success, not set to False.
         assert "analysis_failed" not in annotation, (
             "analysis_failed should be OMITTED on success, not set to False"
         )
 
-        # ---- Per-part value assertions ----
-        assert annotation["key"] == "C"
-        assert annotation["tempo_bpm"] == 120
-        assert annotation["time_signature"] == "4/4"
-        assert annotation["swing"] == 0.5
-        assert annotation["mode"] == "major"  # "C" has no trailing "m" → major
+        # ---- Path rewrite sanity (D-11/D-12 — writer rewrites to relative paths) ----
+        assert annotation["mix"] == "mix.wav"
+        for layer in _LAYERS:
+            assert annotation["stems"][layer] == f"stems/{layer}.wav"
+            assert annotation["midi"][layer] == f"midi/{layer}.mid"
 
-        # song_arrangement is a list of {part, start_seconds, end_seconds} dicts
-        assert isinstance(annotation["song_arrangement"], list)
-        assert len(annotation["song_arrangement"]) >= 1
-        for entry in annotation["song_arrangement"]:
-            assert set(entry.keys()) == {"part", "start_seconds", "end_seconds"}, (
-                f"song_arrangement entry has unexpected keys: {set(entry.keys())}"
-            )
-
-        # beat_times and downbeat_times are dicts keyed by part
-        assert "intro" in annotation["beat_times"], (
-            "'intro' not in beat_times; keys: %s" % list(annotation["beat_times"].keys())
-        )
-        assert "intro" in annotation["downbeat_times"], (
-            "'intro' not in downbeat_times; keys: %s" % list(annotation["downbeat_times"].keys())
-        )
-        # 2 measures of 4/4 → 2 downbeats (time-grid downbeat derivation, Plan 04-01)
-        assert len(annotation["downbeat_times"]["intro"]) == 2, (
-            f"expected 2 downbeats for 2 measures of 4/4, got "
-            f"{len(annotation['downbeat_times']['intro'])}"
-        )
-
-        # JSON round-trip is valid
-        with open(annotation_json) as f:
-            loaded = json.load(f)
-        assert loaded["key"] == "C"
-        assert loaded["tempo_bpm"] == 120
+        # ---- Manifest append (D-13) ----
+        manifest_path = Path(tmp_path) / "manifest.jsonl"
+        assert manifest_path.is_file(), "manifest.jsonl missing"
+        lines = manifest_path.read_text().splitlines()
+        assert len(lines) >= 1, "manifest.jsonl has no entries"
+        last_entry = json.loads(lines[-1])
+        assert last_entry["status"] == "ok"
+        assert last_entry["sample_index"] == 0
+        assert last_entry["split"] == annotation["split"]
 
 
 class TestMidiReproducibility:
-    """MIDI bit-identity under the same seed (WAV identity is Phase 5's golden test)."""
+    """MIDI bit-identity under the same seed (WAV identity is Phase 5 Plan 06's golden test)."""
 
-    def test_same_seed_produces_same_midi(self, tmp_path, monkeypatch):
-        """Two runs with the same seed produce bit-identical beat/melody/harmony/bassline MIDI."""
-        monkeypatch.chdir(tmp_path)
-        import music_gen
+    def test_same_seed_produces_same_midi(self, tmp_path):
+        """Two runs with the same (global_seed, sample_index) produce bit-identical MIDI."""
+        from musicgen import Config, generate
 
-        def _run(name: str, seed: int):
-            music_gen._rng.seed(seed)
-            music_gen.create_song(
-                key="C", tempo=120,
-                song_signatures={"intro": "4/4"}, measures={"intro": 2},
-                name=name, chord_pat_file=_CHORD_PAT_FILE,
-                swing_amount=0.5,
-            )
-            part_dir = Path(tmp_path) / name / f"{name}-intro"
+        def _run(seed: int, sample_index: int, root: Path):
+            result = generate(Config(
+                global_seed=seed, sample_index=sample_index, dataset_root=str(root),
+            ))
             return {
-                layer: (part_dir / f"{name}-intro-{layer}.mid").read_bytes()
-                for layer in ("beat", "melody", "harmony", "bassline")
+                layer: Path(result.midi_paths[layer]).read_bytes()
+                for layer in _LAYERS
             }
 
-        # Two runs with same seed; MIDI bytes must be identical.
-        a = _run("rep1", seed=42)
-        b = _run("rep2", seed=42)
-        for layer in ("beat", "melody", "harmony", "bassline"):
+        # Two runs with the same seed in two distinct dataset_roots.
+        # Both should produce bit-identical MIDI bytes (Phase 5 RNG hierarchy
+        # guarantees determinism).
+        a = _run(seed=42, sample_index=0, root=tmp_path / "a")
+        b = _run(seed=42, sample_index=0, root=tmp_path / "b")
+        for layer in _LAYERS:
             assert a[layer] == b[layer], (
                 f"MIDI reproducibility broken for layer {layer!r}: "
                 f"seed=42 run1 ({len(a[layer])} bytes) != run2 ({len(b[layer])} bytes)"
