@@ -80,14 +80,6 @@ def test_no_bare_random_in_package_module(path):
     )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Phase 5 modules (seeds/writer/manifest/api/musicality) land in "
-        "Waves 1-4; expected_present documents the forward guard. Plan 05-05 "
-        "removes this xfail once api.py (last of the five) is created."
-    ),
-)
 def test_package_scan_covers_all_package_modules():
     """Meta-test: the scan collects all Phase 3/4/5 package modules.
 
@@ -96,8 +88,8 @@ def test_package_scan_covers_all_package_modules():
 
     Phase 5 (D-42) widens `expected_present` to include the five modules that
     Waves 1-4 create: seeds.py (Wave 1), writer.py + manifest.py (Wave 3),
-    api.py + musicality.py (Wave 4). Until those land, this test xfails —
-    the widened set is a forward guard, not a current-state assertion.
+    api.py + musicality.py (Wave 4). All five modules now exist, so this
+    meta-test passes unconditionally.
     """
     modules = _collect_package_modules()
     relative = [os.path.relpath(m, PACKAGE_DIR) for m in modules]
