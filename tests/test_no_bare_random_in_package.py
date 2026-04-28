@@ -80,19 +80,14 @@ def test_no_bare_random_in_package_module(path):
     )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="Phase 6 modules calibrate.py and batch.py land in Waves 2-3 (Plans 06-03/06-04)",
-)
 def test_package_scan_covers_all_package_modules():
     """Meta-test: the scan collects all Phase 3/4/5/6 package modules.
 
     Catches the case where PACKAGE_DIR mis-resolves and the parametrize returns
     an empty list (which would trivially 'pass' the bare-random test above).
 
-    Phase 6 (Plan 06-01) adds calibrate.py and batch.py to expected_present.
-    This test xfails until Wave 3 (Plan 06-04) lands both modules; it will
-    xpass (strict=False) once calibrate.py and batch.py exist.
+    Phase 6 (Plan 06-04) adds calibrate.py and batch.py to expected_present.
+    Both modules now exist — this test passes unconditionally.
     """
     modules = _collect_package_modules()
     relative = [os.path.relpath(m, PACKAGE_DIR) for m in modules]

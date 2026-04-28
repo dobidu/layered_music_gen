@@ -45,8 +45,11 @@ def _make_ok_result(idx: int, dataset_root: str) -> SampleResult:
 
 @pytest.fixture
 def patch_executor(monkeypatch):
-    """Replace ProcessPoolExecutor with ThreadPoolExecutor for test speed."""
-    monkeypatch.setattr("musicgen.batch.ProcessPoolExecutor", ThreadPoolExecutor)
+    """Replace _make_executor with a ThreadPoolExecutor factory for test speed."""
+    monkeypatch.setattr(
+        "musicgen.batch._make_executor",
+        lambda max_workers, mp_ctx: ThreadPoolExecutor(max_workers=max_workers),
+    )
 
 
 @pytest.fixture
