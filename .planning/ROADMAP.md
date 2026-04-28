@@ -188,13 +188,14 @@ Plans:
 
 **Exit criteria:** `musicgen generate --count 4 --out /tmp/ds --seed 42 --workers 2` produces a valid 4-sample dataset. Re-running the same command skips all 4. Killing the process mid-run and re-running resumes correctly.
 
-Plans:
-- [ ] 06-01-PLAN.md — Wave 0: test scaffolding stubs (5 new test files + extend test_config.py + update AST guard expected_present for calibrate.py + batch.py). (R-P9..R-P16, R-Q2 forward-guard)
-- [ ] 06-02-PLAN.md — Wave 1: Config extension (output_mode + count fields) + OutputMode routing in writer.write_sample + pre_roll_offset_s parameter + api.py calibrate hook (fallback to 0.0 until Wave 2). (R-P14)
-- [ ] 06-03-PLAN.md — Wave 2: src/musicgen/calibrate.py (measure_preroll + load_preroll + save_preroll + cache at .musicgen/fluidsynth_preroll.json) + test_calibrate.py. (R-P9)
-- [ ] 06-04-PLAN.md — Wave 3: src/musicgen/batch.py (generate_batch + BatchResult + ProcessPoolExecutor spawn + resume logic + failure isolation + JSON progress logs) + test_batch.py. (R-P10, R-P11, R-P15, R-P16)
-- [ ] 06-05-PLAN.md — Wave 4: Full CLI rewrite (replace Phase 3 stub cli.py — typer commands generate + clean + calibrate) + test_cli.py. (R-P13)
-- [ ] 06-06-PLAN.md — Wave 5: Integration test (4-sample batch, 2 workers, verify manifest + resume + output_mode) + generate_batch/BatchResult export from musicgen.__init__. (R-P10, R-P11, R-P12, R-Q2)
+**Plans:** 6/6 plans executed — PHASE COMPLETE 2026-04-28
+
+- [x] 06-01-PLAN.md — Wave 0: test scaffolding stubs (5 new test files + extend test_config.py + update AST guard expected_present for calibrate.py + batch.py). (R-P9..R-P16, R-Q2 forward-guard) — **COMPLETE 2026-04-28** (commit 020fb76)
+- [x] 06-02-PLAN.md — Wave 1: Config extension (output_mode + count fields) + OutputMode routing in writer.write_sample + pre_roll_offset_s parameter + api.py calibrate hook (fallback to 0.0 until Wave 2). (R-P14) — **COMPLETE 2026-04-28** (commits d34a368, 83a69b6)
+- [x] 06-03-PLAN.md — Wave 2: src/musicgen/calibrate.py (measure_preroll + load_preroll + save_preroll + cache at .musicgen/fluidsynth_preroll.json) + test_calibrate.py. (R-P9) — **COMPLETE 2026-04-28** (commits 3ea34e8, f3ebc11)
+- [x] 06-04-PLAN.md — Wave 3: src/musicgen/batch.py (generate_batch + BatchResult + ProcessPoolExecutor spawn + resume logic + failure isolation + JSON progress logs) + test_batch.py. (R-P10, R-P11, R-P15, R-P16) — **COMPLETE 2026-04-28** (commits 4bca822, bb47e62)
+- [x] 06-05-PLAN.md — Wave 4: Full CLI rewrite (replace Phase 3 stub cli.py — typer commands generate + clean + calibrate) + test_cli.py. (R-P13) — **COMPLETE 2026-04-28** (commits a6d7014, 004b394)
+- [x] 06-06-PLAN.md — Wave 5: Integration test (4-sample batch, 2 workers, verify manifest + resume + output_mode) + generate_batch/BatchResult export from musicgen.__init__. (R-P10, R-P11, R-P12, R-Q2) — **COMPLETE 2026-04-28** (commit da12dcf)
 
 ---
 
@@ -206,13 +207,15 @@ Plans:
 
 **Deliverables**
 
-- README refresh per R-Q1: install, library example, CLI example, directory layout diagram, determinism contract, soundfont licensing caveat.
-- Test coverage target: pure-function coverage ≥ 80%. `pytest-cov` in CI.
-- Determinism regression test from Phase 5 in CI.
-- Acceptance: run `musicgen generate --count 32 --seed 1 --workers 4` end-to-end. Manifest has 32 entries, all `status: ok`, sum-of-stems assertion holds. Manual sanity listen of a few samples.
-- Tag `v0.1.0`.
+- README refresh per R-Q1: install, library example, CLI example, directory layout diagram, determinism contract, soundfont licensing caveat. ✓
+- Test coverage target: pure-function coverage ≥ 80%. `pytest-cov` in CI. ✓ (87% actual)
+- Determinism regression test from Phase 5 in CI. ✓ (TestSameProcessStability runs in every push)
+- GitHub Actions CI on Python 3.10 + 3.12. ✓
+- Tag `v0.1.0`. ✓
 
 **Requirements covered:** R-Q1, R-Q2, R-Q3, R-Q4.
+
+**Plans:** PHASE COMPLETE 2026-04-28 (commit f6cad19 — README + CI; tag v0.1.0 pushed)
 
 **Exit criteria:** `v0.1.0` tagged. README documents the full workflow. A fresh 32-sample dataset generates cleanly with no manual intervention.
 

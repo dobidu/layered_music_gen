@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.1
-milestone_name: — docs, polish, regression suite
-status: Phase 06 IN PROGRESS — discuss + plan complete; 6 plans pending execution
+milestone_name: Ship v0.1 — docs, polish, regression suite
+status: MILESTONE COMPLETE — v0.1.0 tagged 2026-04-28
 last_updated: "2026-04-28T00:00:00Z"
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 7
   total_plans: 31
-  completed_plans: 25
-  percent: 81
+  completed_plans: 31
+  percent: 100
 ---
 
 # STATE
@@ -19,18 +19,17 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 **Core value:** Every generated sample is a complete, reproducible, fully-labeled training example.
-**Current focus:** Phase 06 — productize-ii-calibrate-batch-cli-resumability
+**Current focus:** MILESTONE COMPLETE — v0.1.0 tagged, PR open at https://github.com/dobidu/layered_music_gen/pull/2
 
 ## Current position
 
-Phase: 6 IN PROGRESS
-Plan: 06-01 pending (Wave 0 — test scaffolding stubs + AST guard update). Phase 5 architecturally complete: 25/25 plans landed. Phase 6 discuss + plan complete: 06-CONTEXT.md, 06-DISCUSSION-LOG.md, 06-PATTERNS.md, 06-RESEARCH.md, and 6 PLAN.md files created. Next: execute 06-01 (Wave 0 stubs) then 06-02 through 06-06.
+**v0.1.0 — MILESTONE COMPLETE.** All 7 phases, 31 plans executed. Tag pushed: `v0.1.0`. PR: https://github.com/dobidu/layered_music_gen/pull/2 (release/v0.1.0 → main).
 
 - Initialized: 2026-04-08
-- Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: Phase 06 (Productize II) context gathered 2026-04-28 (auto mode); plans ready for execution
-- Resume file: .planning/phases/06-productize-ii-calibrate-batch-cli-resumability/06-01-PLAN.md
-- Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete; Phase 03 Wave 3 (Plan 03-03 — sampler extraction) complete; Phase 03 Wave 4 (Plan 03-04 — generators extraction, 368 tests, R-X3 closed) complete; Phase 03 Wave 5 (Plan 03-05 — music21 isolation regression test + tests/conftest.py deletion + phase-gate verification) complete, 371 tests pass, zero bare random.* across src/musicgen/, R-X1/R-X2/R-X3 all verified. Phase 3 architecturally closed. Phase 04 Waves 0-5 complete (beats + renderer + mixer + annotator + orchestrator collapse); music_gen.py collapsed to 199 lines, beat_anotator.py deleted, 504 tests pass.
+- Milestone: v0.1 (Stabilize + Extract + Productize) — **SHIPPED 2026-04-28**
+- Active phase: None (milestone complete)
+- Resume file: N/A
+- Progress: All 7 phases complete. 745 fast tests passing, 87% coverage, GitHub Actions CI on Python 3.10 + 3.12, tag v0.1.0, PR #2 open.
 - Mode: Interactive
 - Granularity: Standard
 - Parallelization: enabled (Phase 3 ∥ Phase 4 after Phase 2)
@@ -96,11 +95,13 @@ Plan: 06-01 pending (Wave 0 — test scaffolding stubs + AST guard update). Phas
 
 - **2026-04-19 (Phase 05 CONTEXT, auto mode):** Phase 5 context captured via `/gsd-discuss-phase 5 --auto` with 43 decisions across 13 gray areas; all selected via recommended defaults. Locked decisions (CONTEXT.md D-01…D-43): four new modules under `src/musicgen/` — `seeds.py` (pure `derive_sample_seed` + `make_rngs` verbatim from `.planning/research/ARCHITECTURE.md` §Seed propagation, plus `save_random_state()` context manager), `writer.py` (owns `<dataset-root>/<index:06d>/` layout; `sample.json` last as sentinel per R-P1; stem/MIDI concatenation across parts via pydub+mido; per-sample-dir-relative paths; sum-of-stems assertion inside writer with ε=1e-3 pre-sentinel), `manifest.py` (append-under-lock `manifest.jsonl`; parametrized `lock: ContextManager` defaulting to `threading.Lock()` so Phase 6 swaps in `multiprocessing.Manager().Lock()`; `is_sample_complete` = sentinel-only check, manifest is a projection), `api.py` (single-sample `generate(config) -> SampleResult`; `generate_batch` is Phase 6). `musicality_score.py` finally moves to `src/musicgen/musicality.py` (closes Phase 3 D-11 / Phase 4 D-04 deferral). RNG hierarchy replaces single module-level `_rng` across 5 domains (`params`/`generators`/`soundfonts`/`fx`/`mix`) — no function signature changes (Phase 3+4 `rng: random.Random` contract absorbs the swap). `save_random_state()` wraps `get_musicality_score` for defense-in-depth against dep-upgrade global-random leaks (Phase 3 D-24 proved none exist today). `global_seed is None` → `ValueError` (no silent seed generation). Annotator's Phase-4 TBD fields filled by `api.generate`: `seed=sample_seed`, `musicgen_version=importlib.metadata.version("musicgen")` with `"0.1.0+uninstalled"` fallback, `split=assign_split(sample_seed, ratios)`. `pre_roll_offset_seconds` stays `None` (R-P9 Phase 6). `sample.json` canonicalized with `sort_keys=True` — load-bearing for byte-identical-across-runs determinism test (D-30, non-slow, runs without FluidSynth). Split assignment: `sha256(f"split:{sample_seed}")[:4] % 10000 / 100.0` with default 80/10/10 ratios (configurable via `config.split_ratios`). Regression test fixture (D-28/D-29) stores 6 SHA-256 goldens (mix + 4 MIDIs + canonical sample.json) + `fluidsynth_version.txt` xfail guard; `pytest --regen-goldens` flag regenerates them. Orchestrator migration (D-34): `create_song` + `generate_song_parts` + `generate_song` deleted from `music_gen.py`; bodies move to `api.py`; `music_gen.py` stays as a ~40-line smoke wrapper calling `musicgen.generate(Config(global_seed=1, sample_index=0))` until Phase 6 CLI replaces the smoke path. `src/musicgen/__init__.py` exports `generate`, `Config`, `SampleResult`, `__version__`. Six new test files (D-36…D-41): seeds / writer / manifest / split / api / determinism_golden + fast cross-check test `test_generate_sample_json_stable_same_process`. AST bare-random guard (Phase 4 D-31) parametrized glob already picks up new modules automatically. Zero new runtime deps (stdlib-only: hashlib, threading, multiprocessing, pathlib, importlib.metadata, contextlib, shutil, tempfile, json; scipy.io.wavfile is transitive through librosa; mido for MIDI concat landed in Phase 4). Phase 6 boundary (D-43): `generate_batch`, `typer` full CLI, FluidSynth pre-roll calibration, `--output-mode` flag, structured JSON progress logs, `clean --failed`, aggregated failure-count reporting all explicitly deferred; infrastructure hooks (lock parameter, reserved `workers` config field, `generate` as single-sample primitive) land now so Phase 6 extends rather than refactors. Context artifacts: `05-CONTEXT.md` (12.4kLOC), `05-DISCUSSION-LOG.md` (audit trail).
 
-## Next command
+## Next steps
 
-Phase 05 COMPLETE — all 25 plans landed (Plan 05-06 shipped determinism goldens infrastructure: TestDeterminismGoldens parametrized over 6 artifacts + --regen-goldens capture pathway + FluidSynth version xfail gate + TestSameProcessStability fast D-30 in-process cross-check + refined fixtures README). R-P8 + R-Q3 closed. Post-phase maintainer operation (optional, out of scope): run `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on a pinned-FluidSynth host to capture the 6 golden SHA-256s + fluidsynth_version.txt.
+**Milestone complete.** Optional post-release tasks:
 
-Next: `/gsd-verify-phase 5` (phase-closure verification gates) then `/gsd-discuss-phase 6` (Phase 6 CONTEXT: typer CLI + generate_batch + multi-process lock path). Resume file: `.planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-06-SUMMARY.md`.
+- Run `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on a pinned-FluidSynth host to capture the 6 golden SHA-256s + fluidsynth_version.txt and commit them.
+- Merge PR #2 (`release/v0.1.0` → `main`) after review.
+- Begin planning v0.2 (Extend: broader musical vocabulary, richer chord progressions, more drum/genre patterns).
 
 ---
 

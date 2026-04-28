@@ -88,39 +88,41 @@ Extraction order follows ARCHITECTURE.md. Each extraction lands with unit tests.
 
 **R-P8 — Determinism contract.** Same global seed on the same machine with the same FluidSynth binary produces bit-identical MIDI, bit-identical `sample.json`, and bit-identical WAV. Cross-binary WAV identity is NOT guaranteed. A pytest regression test runs a fixed small seed and asserts `sha256(mix.wav)` matches a checked-in golden value. (Mitigates PITFALLS P-1.)
 
-**R-P9 — FluidSynth pre-roll measurement.** A one-time calibration derives FluidSynth's startup silence offset for the installed binary and stores it in a cached file under `.musicgen/fluidsynth_preroll.json`. This offset is applied to all MIDI-anchored annotations (beat times, note onsets). Also recorded in `sample.json` for auditability. (Mitigates PITFALLS P-3, P-8.)
+**R-P9 — FluidSynth pre-roll measurement.** A one-time calibration derives FluidSynth's startup silence offset for the installed binary and stores it in a cached file under `.musicgen/fluidsynth_preroll.json`. This offset is applied to all MIDI-anchored annotations (beat times, note onsets). Also recorded in `sample.json` for auditability. (Mitigates PITFALLS P-3, P-8.) **[Status: CLOSED 2026-04-28 by Plan 06-03 — `src/musicgen/calibrate.py` ships `load_preroll`, `measure_and_save_preroll`, version-gated cache.]**
 
-**R-P10 — Batch generation.** `musicgen.generate_batch(config)` runs N samples in parallel via `ProcessPoolExecutor(max_workers=config.workers or os.cpu_count())`. Each worker receives only `(sample_index, global_seed, config)` — no shared state. Completed samples are appended to `manifest.jsonl` as they finish.
+**R-P10 — Batch generation.** `musicgen.generate_batch(config)` runs N samples in parallel via `ProcessPoolExecutor(max_workers=config.workers or os.cpu_count())`. Each worker receives only `(sample_index, global_seed, config)` — no shared state. Completed samples are appended to `manifest.jsonl` as they finish. **[Status: CLOSED 2026-04-28 by Plan 06-04 — `src/musicgen/batch.py` ships `generate_batch` + `BatchResult` with spawn-context executor.]**
 
-**R-P11 — Resumability.** Re-running `generate_batch` against an existing dataset directory skips samples whose `sample.json` already exists. Failed samples (no `sample.json`, or manifest status `failed`) are retried. Resumption is idempotent.
+**R-P11 — Resumability.** Re-running `generate_batch` against an existing dataset directory skips samples whose `sample.json` already exists. Failed samples (no `sample.json`, or manifest status `failed`) are retried. Resumption is idempotent. **[Status: CLOSED 2026-04-28 by Plan 06-04 — `generate_batch` checks `ManifestWriter.is_sample_complete` before dispatch.]**
 
 **R-P12 — Library API.**
   - `musicgen.generate(config) -> SampleResult` — generate one sample.
   - `musicgen.generate_batch(config) -> BatchResult` — generate N samples, manifest-tracked.
   - Both accept a `Config` dataclass with at least: `global_seed`, `count`, `output_dir`, `workers`, `output_mode`, `split_ratios`, `overrides` (for biasing distributions).
+  **[Status: CLOSED 2026-04-28 by Plan 06-06 — `generate_batch`, `BatchResult` exported from `musicgen.__init__`.]**
 
 **R-P13 — CLI.** `typer`-based entry point:
   - `musicgen generate --count N --out DIR --seed S [--workers W] [--output-mode MODE] [--verbose]`
   - `musicgen clean --failed` — remove incomplete per-sample directories.
   - Verbosity driven by `-v`/`-q` flags.
+  **[Status: CLOSED 2026-04-28 by Plan 06-05 — `src/musicgen/cli.py` rewrites the Phase 3 stub with three full commands.]**
 
-**R-P14 — Output mode flag.** `--output-mode` selects `full` (stems + midi + mix + annotations, default), `mix-only`, `stems-only`, or `midi-only`. Writer and annotator honor the flag.
+**R-P14 — Output mode flag.** `--output-mode` selects `full` (stems + midi + mix + annotations, default), `mix-only`, `stems-only`, or `midi-only`. Writer and annotator honor the flag. **[Status: CLOSED 2026-04-28 by Plan 06-02 — `output_mode` Config field + `writer.write_sample` routing via `_WRITE_MIX/_WRITE_STEMS/_WRITE_MIDI` booleans.]**
 
-**R-P15 — Progress + logging.** JSON-formatted structured logs during batch runs. Each sample logs start/finish with sample index, seed, and duration. Parallel workers append atomically.
+**R-P15 — Progress + logging.** JSON-formatted structured logs during batch runs. Each sample logs start/finish with sample index, seed, and duration. Parallel workers append atomically. **[Status: CLOSED 2026-04-28 by Plan 06-04 — `batch._log_event()` emits JSON to stderr; events: batch_start, sample_start, sample_skip, sample_done, batch_done.]**
 
-**R-P16 — Failure isolation.** A single failing sample does not abort the batch. Failures are logged with traceback, manifest-marked `status: failed`, and generation continues. Aggregated failure count is reported at the end.
+**R-P16 — Failure isolation.** A single failing sample does not abort the batch. Failures are logged with traceback, manifest-marked `status: failed`, and generation continues. Aggregated failure count is reported at the end. **[Status: CLOSED 2026-04-28 by Plan 06-04 — `as_completed` loop traps exceptions per-future; `BatchResult.failed` counter; CLI exits 1 with warning when failed > 0.]**
 
 ---
 
 ## R-Q — Quality + docs (ship-quality checklist for v0.1)
 
-**R-Q1 — README refresh.** Update `README.md` to document: what the tool generates, how to install (`pip install -e .`), minimal library usage example, minimal CLI usage example, dataset directory layout, determinism contract, soundfont licensing caveat.
+**R-Q1 — README refresh.** Update `README.md` to document: what the tool generates, how to install (`pip install -e .`), minimal library usage example, minimal CLI usage example, dataset directory layout, determinism contract, soundfont licensing caveat. **[Status: CLOSED 2026-04-28 by Phase 07 — README fully rewritten with CLI section, batch API, output_mode/count/workers config docs, architecture module table, roadmap table.]**
 
-**R-Q2 — Test coverage target.** Pure-function coverage ≥ 80% (samplers, generators, annotator, beats, time-sig registry, DurationValidator). Integration tests cover one end-to-end sample + one end-to-end batch of 4 samples.
+**R-Q2 — Test coverage target.** Pure-function coverage ≥ 80% (samplers, generators, annotator, beats, time-sig registry, DurationValidator). Integration tests cover one end-to-end sample + one end-to-end batch of 4 samples. **[Status: CLOSED 2026-04-28 — 87% overall coverage; CI enforces `--cov-fail-under=80`; `test_integration_batch.py` covers 4-sample batch + resume + output_mode.]**
 
-**R-Q3 — Regression test.** The determinism regression test from R-P8 is part of CI.
+**R-Q3 — Regression test.** The determinism regression test from R-P8 is part of CI. **[Status: CLOSED 2026-04-28 — `TestSameProcessStability` (fast, no FluidSynth) runs on every CI push; `TestDeterminismGoldens` (slow, FluidSynth-gated) available via `-m slow`.]**
 
-**R-Q4 — Version field.** `pyproject.toml` declares `version = "0.1.0"`. `musicgen_version` appears in every `sample.json`. **[Status: pyproject portion CLOSED 2026-04-18 by Plan 03-01](/home/bidu/musicgen/.planning/phases/03-package-skeleton-sampler-generators-extraction/03-01-SUMMARY.md); `musicgen_version` in `sample.json` remains for Phase 5.]**
+**R-Q4 — Version field.** `pyproject.toml` declares `version = "0.1.0"`. `musicgen_version` appears in every `sample.json`. **[Status: CLOSED — pyproject portion by Plan 03-01 (2026-04-18); `musicgen_version` in `sample.json` by Plan 05-05 (2026-04-20); tag `v0.1.0` pushed 2026-04-28.]**
 
 ---
 
