@@ -212,6 +212,23 @@ class TestSplitRatiosValidation:
         assert cfg.split_ratios == (0.1, 0.1, 0.8)
 
 
+@pytest.mark.skip(reason="Wave 1 (Plan 06-02) adds output_mode and count to Config")
+class TestPhase6Fields:
+    """Phase 6 Config field stubs (D-47, D-48, D-49). Filled in by Plan 06-02."""
+
+    def test_output_mode_default_is_full(self):
+        ...
+
+    def test_output_mode_invalid_raises(self):
+        ...
+
+    def test_count_default_is_one(self):
+        ...
+
+    def test_count_propagates_via_load(self):
+        ...
+
+
 class TestDatasetRootEnvVar:
     """D-09: MUSICGEN_DATASET_ROOT follows Phase 2 D-01 precedence."""
 

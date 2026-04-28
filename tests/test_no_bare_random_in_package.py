@@ -80,25 +80,30 @@ def test_no_bare_random_in_package_module(path):
     )
 
 
+@pytest.mark.xfail(
+    strict=False,
+    reason="Phase 6 modules calibrate.py and batch.py land in Waves 2-3 (Plans 06-03/06-04)",
+)
 def test_package_scan_covers_all_package_modules():
-    """Meta-test: the scan collects all Phase 3/4/5 package modules.
+    """Meta-test: the scan collects all Phase 3/4/5/6 package modules.
 
     Catches the case where PACKAGE_DIR mis-resolves and the parametrize returns
     an empty list (which would trivially 'pass' the bare-random test above).
 
-    Phase 5 (D-42) widens `expected_present` to include the five modules that
-    Waves 1-4 create: seeds.py (Wave 1), writer.py + manifest.py (Wave 3),
-    api.py + musicality.py (Wave 4). All five modules now exist, so this
-    meta-test passes unconditionally.
+    Phase 6 (Plan 06-01) adds calibrate.py and batch.py to expected_present.
+    This test xfails until Wave 3 (Plan 06-04) lands both modules; it will
+    xpass (strict=False) once calibrate.py and batch.py exist.
     """
     modules = _collect_package_modules()
     relative = [os.path.relpath(m, PACKAGE_DIR) for m in modules]
-    # Must cover all Phase 3 + Phase 4 + Phase 5 modules under src/musicgen/
+    # Must cover all Phase 3 + Phase 4 + Phase 5 + Phase 6 modules under src/musicgen/
     expected_present = {
         "sampler.py", "renderer.py", "mixer.py", "annotator.py", "beats.py",
         "duration_validator.py",
-        # Phase 5 additions (added in Waves 1-4):
+        # Phase 5 additions:
         "seeds.py", "writer.py", "manifest.py", "api.py", "musicality.py",
+        # Phase 6 additions (land in Waves 2-3):
+        "calibrate.py", "batch.py",
         os.path.join("generators", "beat.py"),
         os.path.join("generators", "chord.py"),
         os.path.join("generators", "melody.py"),
