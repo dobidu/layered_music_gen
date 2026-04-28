@@ -6,10 +6,9 @@ Suitable for training models that learn music tagging, source separation, beat/t
 
 ## Status
 
-- **Milestone v0.1 — in progress.** 5 of 7 phases complete.
-- **What works today (Phase 5):** single-sample library API (`musicgen.generate(Config)`), per-sample directory layout, deterministic seed propagation, bit-identical re-runs, sum-of-stems integrity check, manifest tracking, train/valid/test split.
-- **Coming in Phase 6:** parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode flag.
-- **Test suite:** 690 fast tests passing (`pytest -m "not slow"`); 6 slow FluidSynth-gated tests collected separately.
+- **Milestone v0.1 — complete.** All 7 phases shipped.
+- **What's in v0.1:** single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
+- **Test suite:** 745 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
 
 ## Core value
 
@@ -61,12 +60,28 @@ sf/
 
 ## Usage
 
+### CLI
+
+```bash
+# Generate 32 samples with 4 workers, seed 1
+musicgen generate --count 32 --seed 1 --out ./dataset --workers 4
+
+# Mix-only mode (no stems or MIDI written)
+musicgen generate --count 32 --seed 1 --out ./dataset --output-mode mix-only
+
+# Clean up failed partial sample directories
+musicgen clean --failed --out ./dataset
+
+# Measure and cache FluidSynth pre-roll offset (run once per machine)
+musicgen calibrate
+```
+
+Output mode choices: `full` (default) | `mix-only` | `stems-only` | `midi-only`.
+
 ### Library API
 
-The public surface is exactly four names:
-
 ```python
-from musicgen import generate, Config, SampleResult, __version__
+from musicgen import generate, generate_batch, Config, SampleResult, BatchResult, __version__
 ```
 
 Generate one sample:
@@ -74,11 +89,7 @@ Generate one sample:
 ```python
 from musicgen import generate, Config
 
-result = generate(Config(
-    global_seed=42,
-    sample_index=0,
-    dataset_root="./dataset",
-))
+result = generate(Config(global_seed=42, sample_index=0, dataset_root="./dataset"))
 
 print(result.sample_dir)         # "./dataset/000000"
 print(result.split)              # "train" | "valid" | "test"
@@ -86,17 +97,26 @@ print(result.musicality_score)   # float
 print(result.status)             # "ok" | "failed"
 ```
 
-Re-running with the same `(global_seed, sample_index)` short-circuits if the sample is already on disk (sentinel = `sample.json` exists), so batch retries are idempotent.
+Generate a batch:
+
+```python
+from musicgen import generate_batch, Config
+
+result = generate_batch(Config(global_seed=1, count=32, dataset_root="./dataset", workers=4))
+
+print(result.succeeded, result.failed, result.skipped)  # 32 0 0
+print(result.duration_seconds)
+```
+
+Re-running with the same `(global_seed, sample_index)` short-circuits when `sample.json` already exists — batch retries are idempotent.
 
 ### Smoke test
 
-The repo-root `music_gen.py` is a 60-line smoke wrapper that calls `musicgen.generate(Config(global_seed=1, sample_index=0))`:
+`music_gen.py` at the repo root is a 60-line wrapper that calls the single-sample API:
 
 ```bash
 python music_gen.py
 ```
-
-It will be replaced by the full `musicgen generate` CLI in Phase 6.
 
 ### Configuration
 
@@ -110,7 +130,9 @@ It will be replaced by the full `musicgen generate` CLI in Phase 6.
 | `split_ratios` | `(0.8, 0.1, 0.1)` | Train/valid/test. Validated at `__post_init__` (must sum to 1.0 ± 1e-9, all non-negative). |
 | `sum_of_stems_epsilon` | `1e-3` | Peak abs-difference tolerance (normalized float32) for the stems-sum-to-mix invariant. |
 | `keep_working_dirs` | `False` | Set `True` to preserve per-sample working directories for debugging. |
-| `workers` | `None` | Phase 6 reserved (batch runner). Ignored today. |
+| `workers` | `None` (all cores) | `generate_batch` parallel workers. Pass integer to cap. |
+| `count` | `1` | Number of samples for `generate_batch`. Override via `MUSICGEN_COUNT`. |
+| `output_mode` | `"full"` | `full` / `mix-only` / `stems-only` / `midi-only`. Override via `MUSICGEN_OUTPUT_MODE`. |
 | `sf_dir` | `<repo>/sf` | Override via `MUSICGEN_SF_DIR` env var. |
 
 Other paths (FX JSONs, levels, song structures, chord patterns, beat-roll patterns) are also `Config` fields with sensible defaults — see `config.py`.
@@ -203,7 +225,7 @@ Zero bare `random.*` calls anywhere in `src/musicgen/` — enforced by an AST st
 ## Tests
 
 ```bash
-pytest -m "not slow"      # Fast suite (default CI) — 690 tests in ~5s
+pytest -m "not slow"      # Fast suite (default CI) — 745 tests in ~5s
 pytest -m slow            # Slow suite — requires FluidSynth + .sf2 pools
 pytest                    # Everything
 ```
@@ -219,8 +241,8 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 | 3 | Package skeleton + sampler + generators extraction | ✓ COMPLETE | 5/5 |
 | 4 | Renderer + mixer + annotator + beats extraction | ✓ COMPLETE | 7/7 |
 | 5 | Productize I — writer, manifest, seed discipline, determinism | ✓ COMPLETE | 6/6 |
-| 6 | Productize II — FluidSynth calibration, batch generation, CLI, resumability | ○ next | — |
-| 7 | Ship v0.1 — docs, polish, regression suite | ○ pending | — |
+| 6 | Productize II — FluidSynth calibration, batch generation, CLI, resumability | ✓ COMPLETE | 6/6 |
+| 7 | Ship v0.1 — docs, polish, regression suite | ✓ COMPLETE | — |
 
 ### Phases delivered
 
@@ -230,17 +252,18 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 - **Phase 4 — Audio-side extraction.** `src/musicgen/{renderer, mixer, annotator, beats}.py`. `ThreadPoolExecutor` parallel stem rendering. Pure-function annotator producing the R-P4 schema. Swing-aware MIDI-tick beat derivation (replaces the old grid-based `beat_anotator.py`, which is deleted). `mix_and_save` is gone; `music_gen.py` collapses to a thin orchestrator.
 - **Phase 5 — Productize I.** `src/musicgen/{seeds, writer, manifest, api, musicality}.py`. Per-sample directory layout with atomic sentinel ordering. Sum-of-stems integrity check (int32 accumulator, ε=1e-3). Five-domain RNG hierarchy. `manifest.jsonl` with threading.Lock + `os.fsync`. Deterministic train/valid/test split. `musicgen.generate(Config) → SampleResult` library entry point. `music_gen.py` collapsed from 199 → 60 lines.
 
-### Phases ahead
-
-- **Phase 6 — Productize II.** `musicgen.generate_batch(config)` via `ProcessPoolExecutor`. FluidSynth pre-roll calibration (caches in `.musicgen/fluidsynth_preroll.json`, applied to beat-time annotations). Full `typer` CLI: `musicgen generate --count N --out DIR --seed S [--workers W] [--output-mode MODE]` and `musicgen clean --failed`. `--output-mode` flag (`full` / `mix-only` / `stems-only` / `midi-only`). Resumability beyond the sentinel check. Failure isolation (one bad sample doesn't kill a 10k batch).
-- **Phase 7 — Ship v0.1.** README polish, ≥80% coverage, determinism regression test wired into CI, generate a 32-sample acceptance dataset, tag `v0.1.0`.
+- **Phase 6 — Productize II.** `musicgen.generate_batch(config)` via `ProcessPoolExecutor`. FluidSynth pre-roll calibration (caches in `.musicgen/fluidsynth_preroll.json`, applied to beat-time annotations). Full `typer` CLI: `musicgen generate --count N --out DIR --seed S [--workers W] [--output-mode MODE]` and `musicgen clean --failed`. `--output-mode` flag (`full` / `mix-only` / `stems-only` / `midi-only`). Resumability via sentinel check. Failure isolation (one bad sample doesn't kill a 10k batch). Structured JSON progress events on stderr.
+- **Phase 7 — Ship v0.1.** README refresh, GitHub Actions CI (87% coverage, determinism regression), `v0.1.0` tag.
 
 ## Architecture (post-Phase 5)
 
 ```
 src/musicgen/
-├── __init__.py          # public exports: generate, Config, SampleResult, __version__
+├── __init__.py          # public exports: generate, generate_batch, Config, SampleResult, BatchResult, __version__
 ├── api.py               # generate(Config) — composition root
+├── batch.py             # generate_batch(Config) → BatchResult via ProcessPoolExecutor
+├── cli.py               # typer app: generate / clean / calibrate commands
+├── calibrate.py         # FluidSynth pre-roll offset measurement + .musicgen/ cache
 ├── config.py (root)     # Config dataclass with CLI > env > defaults precedence
 ├── seeds.py             # derive_sample_seed, make_rngs, save_random_state, assign_split
 ├── sampler.py           # SongParams + key/tempo/time-sig/swing/measures/arrangement
@@ -254,7 +277,7 @@ src/musicgen/
 ├── beats.py             # MIDI-tick beat + downbeat extraction (mido), swing-aware
 ├── annotator.py         # pure-function R-P4 schema assembler
 ├── musicality.py        # MusicalityAnalyzer (tempo, harmony, rhythm, timbre, SNR)
-├── writer.py            # atomic per-sample dir, sum-of-stems assertion, MIDI/stem concat
+├── writer.py            # atomic per-sample dir, sum-of-stems assertion, MIDI/stem concat, output_mode routing
 ├── manifest.py          # ManifestWriter (append-under-lock, JSONL)
 └── duration_validator.py
 ```
@@ -265,11 +288,13 @@ Pipeline flow inside `generate(config)`:
 sampler → generators → renderer (FluidSynth, parallel stems)
        → mixer (FX + overlay + concat)
        → beats (MIDI-tick extraction)
-       → annotator (R-P4 dict)
-       → writer (atomic sample dir + sum-of-stems)
+       → annotator (R-P4 dict + pre-roll offset)
+       → writer (atomic sample dir + sum-of-stems + output_mode routing)
        → manifest (JSONL append)
        → SampleResult
 ```
+
+`generate_batch` wraps `generate` in a `ProcessPoolExecutor` (spawn context), emits JSON progress events on `stderr`, and returns `BatchResult`.
 
 ## Out of scope for v0.1
 
