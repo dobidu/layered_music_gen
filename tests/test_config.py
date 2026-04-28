@@ -212,21 +212,22 @@ class TestSplitRatiosValidation:
         assert cfg.split_ratios == (0.1, 0.1, 0.8)
 
 
-@pytest.mark.skip(reason="Wave 1 (Plan 06-02) adds output_mode and count to Config")
 class TestPhase6Fields:
-    """Phase 6 Config field stubs (D-47, D-48, D-49). Filled in by Plan 06-02."""
+    """Phase 6 Config field stubs (D-47, D-48, D-49)."""
 
     def test_output_mode_default_is_full(self):
-        ...
+        assert config.Config().output_mode == "full"
 
     def test_output_mode_invalid_raises(self):
-        ...
+        with pytest.raises(ValueError, match="output_mode"):
+            config.Config(output_mode="invalid")
 
     def test_count_default_is_one(self):
-        ...
+        assert config.Config().count == 1
 
     def test_count_propagates_via_load(self):
-        ...
+        cfg = config.Config.load(cli_overrides={"count": 5})
+        assert cfg.count == 5
 
 
 class TestDatasetRootEnvVar:

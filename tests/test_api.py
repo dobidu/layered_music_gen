@@ -146,6 +146,13 @@ class TestApiFast:
         assert isinstance(__version__, str)
         assert __version__  # non-empty
 
+    def test_generate_accepts_manifest_writer_kwarg(self, tmp_path, monkeypatch):
+        """D-58: generate() accepts manifest_writer kwarg for batch isolation."""
+        from musicgen import generate, Config, SampleResult
+        import inspect
+        sig = inspect.signature(generate)
+        assert "manifest_writer" in sig.parameters
+
 
 # ---------------- TestApiSlow — real pipeline, guarded ----------------
 
