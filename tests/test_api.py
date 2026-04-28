@@ -153,6 +153,12 @@ class TestApiFast:
         sig = inspect.signature(generate)
         assert "manifest_writer" in sig.parameters
 
+    def test_public_exports_include_batch(self):
+        """R-P12: generate_batch and BatchResult accessible from top-level musicgen."""
+        import musicgen
+        assert hasattr(musicgen, "generate_batch")
+        assert hasattr(musicgen, "BatchResult")
+
 
 # ---------------- TestApiSlow — real pipeline, guarded ----------------
 
