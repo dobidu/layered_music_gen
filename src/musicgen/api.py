@@ -93,15 +93,19 @@ class SampleResult:
     duration_seconds: float
 
 
-def generate(config: Config) -> SampleResult:
-    """Generate one sample end-to-end (D-31).
+def generate(config: Config, *, manifest_writer=None) -> SampleResult:
+    """Generate one sample end-to-end (D-31, D-58).
 
-    The sole library entry point for v0.1. Batch generation
-    (``generate_batch``) is Phase 6.
+    The sole library entry point for v0.1. Batch generation via
+    ``generate_batch`` is Phase 6 (R-P10).
 
     Args:
         config: A ``Config`` with at minimum ``global_seed``, ``sample_index``,
             and ``dataset_root``. Split ratios default to (0.8, 0.1, 0.1).
+        manifest_writer: Optional manifest writer override (D-58). When None
+            a default ``ManifestWriter(config.dataset_root)`` is created. Pass
+            a ``_NullManifestWriter`` from batch.py to skip per-sample manifest
+            writes (batch.py appends after as_completed).
 
     Returns:
         SampleResult with ``status="ok"`` on success, ``"failed"`` on any
@@ -140,7 +144,8 @@ def generate(config: Config) -> SampleResult:
         )
 
     # Step 4+: full pipeline under try/except — any failure → failed result.
-    manifest_writer = ManifestWriter(config.dataset_root)
+    if manifest_writer is None:
+        manifest_writer = ManifestWriter(config.dataset_root)
     working_dir = tempfile.mkdtemp(prefix="musicgen-")
     logger.debug("Sample %d working dir: %s", config.sample_index, working_dir)
 
@@ -315,6 +320,14 @@ def _run_pipeline(
         song_arrangement=list(song_arrangement),
     )
 
+    # Load FluidSynth pre-roll offset (R-P9, D-53). Graceful fallback when
+    # calibrate.py doesn't exist yet (Wave 2 of Phase 6 creates it).
+    try:
+        from musicgen import calibrate as _calibrate
+        pre_roll_offset_s = _calibrate.load_preroll(_cfg.project_root)
+    except Exception:
+        pre_roll_offset_s = 0.0
+
     # Annotate — Phase-5 TBDs filled per D-22.
     annotation = annotator.annotate(
         song_params=song_params_obj,
@@ -326,6 +339,7 @@ def _run_pipeline(
         seed=sample_seed,
         musicgen_version=MUSICGEN_VERSION,
         split=split,
+        pre_roll_offset_seconds=pre_roll_offset_s,
     )
 
     # Write atomic per-sample layout.
@@ -336,6 +350,8 @@ def _run_pipeline(
         fluidsynth_version=renderer.FLUIDSYNTH_VERSION,
         split=split,
         sum_of_stems_epsilon=_cfg.sum_of_stems_epsilon,
+        output_mode=_cfg.output_mode,
+        pre_roll_offset_s=pre_roll_offset_s,
     )
 
     # Manifest append (D-13).
@@ -358,9 +374,9 @@ def _run_pipeline(
         seed=sample_seed,
         sample_dir=paths["sample_dir"],
         sample_json_path=paths["sample_json"],
-        mix_path=paths["mix"],
-        stem_paths={layer: paths[f"stems_{layer}"] for layer in _LAYERS},
-        midi_paths={layer: paths[f"midi_{layer}"] for layer in _LAYERS},
+        mix_path=paths.get("mix", ""),
+        stem_paths={layer: paths[f"stems_{layer}"] for layer in _LAYERS if f"stems_{layer}" in paths},
+        midi_paths={layer: paths[f"midi_{layer}"] for layer in _LAYERS if f"midi_{layer}" in paths},
         split=split,
         status="ok",
         musicality_score=float(score),

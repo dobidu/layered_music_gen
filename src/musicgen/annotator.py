@@ -92,6 +92,7 @@ def annotate(
     seed: Optional[int] = None,
     split: Optional[str] = None,
     analysis_failed: Optional[bool] = None,
+    pre_roll_offset_seconds: Optional[float] = None,
 ) -> dict:
     """Produce the R-P4 annotation dict for one sample (Phase 4 subset, D-15/D-16).
 
@@ -170,7 +171,7 @@ def annotate(
         "seed": seed,
         "musicgen_version": musicgen_version,
         "split": split,
-        "pre_roll_offset_seconds": None,  # R-P9 Phase 6 calibrate step fills
+        "pre_roll_offset_seconds": pre_roll_offset_seconds,  # R-P9 Phase 6
     }
 
     # D-16 clarification: analysis_failed is OMITTED on success, only present

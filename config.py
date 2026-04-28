@@ -66,15 +66,16 @@ class Config:
     split_ratios: Tuple[float, float, float] = (0.8, 0.1, 0.1)
     sum_of_stems_epsilon: float = 1e-3
     keep_working_dirs: bool = False
-    workers: Optional[int] = None  # Phase 6 reserved
+    workers: Optional[int] = None
+
+    # --- Phase 6 fields (D-47, D-48, D-49) ---
+    output_mode: str = "full"   # R-P14: full | mix-only | stems-only | midi-only
+    count: int = 1              # R-P12: number of samples for generate_batch
+
+    _VALID_OUTPUT_MODES = frozenset({"full", "mix-only", "stems-only", "midi-only"})
 
     def __post_init__(self):
-        """Phase 5 field validation (D-27).
-
-        global_seed=None is PERMITTED here — api.generate raises when
-        it is actually needed (D-21). Config is usable for non-generation
-        concerns (e.g. soundfont pool inspection) without a seed.
-        """
+        """Phase 5+6 field validation (D-27, D-47, D-48, D-49)."""
         if abs(sum(self.split_ratios) - 1.0) > 1e-9:
             raise ValueError(
                 f"split_ratios must sum to 1.0, got "
@@ -84,6 +85,13 @@ class Config:
             raise ValueError(
                 f"split_ratios must be non-negative, got {self.split_ratios}"
             )
+        if self.output_mode not in self._VALID_OUTPUT_MODES:
+            raise ValueError(
+                f"output_mode must be one of {sorted(self._VALID_OUTPUT_MODES)}, "
+                f"got {self.output_mode!r}"
+            )
+        if self.count < 1:
+            raise ValueError(f"count must be >= 1, got {self.count}")
 
     def sf_layer_dir(self, layer: str) -> str:
         """Return the on-disk directory for a single soundfont layer."""
@@ -115,6 +123,15 @@ class Config:
         dataset_env = os.environ.get("MUSICGEN_DATASET_ROOT")
         if dataset_env:
             cfg.dataset_root = os.path.abspath(dataset_env)  # T-02-01 mitigation
+        output_mode_env = os.environ.get("MUSICGEN_OUTPUT_MODE")
+        if output_mode_env:
+            cfg.output_mode = output_mode_env  # validated in __post_init__ on next load
+        count_env = os.environ.get("MUSICGEN_COUNT")
+        if count_env:
+            try:
+                cfg.count = int(count_env)
+            except ValueError:
+                logger.warning("MUSICGEN_COUNT is not an integer: %r", count_env)
 
         # cli layer (D-02 top layer; framework-agnostic — avoids typer dep in Phase 2)
         if cli_overrides:

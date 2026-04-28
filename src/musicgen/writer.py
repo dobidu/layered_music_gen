@@ -49,90 +49,96 @@ def write_sample(
     fluidsynth_version: str,
     split: str,
     sum_of_stems_epsilon: float = 1e-3,
+    output_mode: str = "full",
+    pre_roll_offset_s: float = 0.0,
 ) -> Dict[str, str]:
-    """Write the atomic per-sample layout (D-04 ordering).
+    """Write the atomic per-sample layout (D-04 ordering, D-66 output_mode).
 
     Args:
-        dataset_root: Absolute path to the dataset directory.
-        sample_index: Zero-based index. Zero-padded to width 6 (D-05).
-        annotation: Dict from :func:`annotator.annotate` with kwargs already
-            filled by api.py (seed, musicgen_version, split per D-22).
-            Keys ``mix``, ``stems``, ``midi`` will be path-rewritten (D-11/D-12).
-        mix_working_path: Absolute path to the final concatenated mix in
-            the working dir (produced by ``mixer.concat_parts``).
-        stems_working_paths: ``{part_name: {layer: abs_path}}`` — per-part
-            per-layer post-FX stem paths (from ``mixer.mix_part``).
-        midi_working_paths: ``{part_name: {layer: abs_path}}`` — per-part
-            per-layer MIDI paths (from ``generators/*``).
-        song_arrangement: List of part names in playback order — drives the
-            concat iteration order for both stems and MIDIs.
-        tempo_bpm: Integer tempo; used by ``_concat_layer_midis`` to convert
-            seconds → ticks for the absolute-tick walk.
-        part_durations_s: Per-part audio durations in seconds — same length
-            and order as ``song_arrangement``. Used for MIDI tick offsets.
-        fluidsynth_version: Captured at render time; included in the final
-            annotation as-is (annotator already has it, writer just preserves).
-        split: ``"train"``, ``"valid"``, or ``"test"`` from ``assign_split``.
-        sum_of_stems_epsilon: Max allowed ``|sum(stems) - mix|`` in normalized
-            float32. Default 1e-3 per D-25.
+        output_mode: Controls which files are written (D-66, R-P14).
+            "full" → stems + midi + mix; "mix-only" → mix only;
+            "stems-only" → stems only; "midi-only" → midi only.
+        pre_roll_offset_s: FluidSynth pre-roll offset in seconds (D-53, R-P9).
+            Applied to beat_times and downbeat_times before serialization.
+            0.0 means no shift (default until calibrate.py runs).
 
     Returns:
-        Dict of final paths: ``{"sample_dir", "sample_json", "mix",
-        "stems_<layer>", "midi_<layer>"}``.
+        Dict of final paths (only keys present for written files).
 
     Raises:
         AssertionError: sum-of-stems check failed — sample.json NOT written.
-        ValueError: from ``_concat_layer_midis`` if ``part_midi_paths`` empty,
-            or from ``_assert_sum_of_stems`` if stem/mix shapes mismatch.
     """
+    _write_mix = output_mode in ("full", "mix-only")
+    _write_stems = output_mode in ("full", "stems-only")
+    _write_midi = output_mode in ("full", "midi-only")
+
     sample_dir = os.path.join(dataset_root, f"{sample_index:06d}")
     stems_dir = os.path.join(sample_dir, "stems")
     midi_dir = os.path.join(sample_dir, "midi")
-    os.makedirs(stems_dir, exist_ok=True)
-    os.makedirs(midi_dir, exist_ok=True)
+    os.makedirs(sample_dir, exist_ok=True)
 
     # Step 1: per-layer MIDI concat (absolute-tick walk, RESEARCH Pitfall 1).
     midi_final_paths: Dict[str, str] = {}
-    for layer in _LAYERS:
-        part_midi_paths = [
-            midi_working_paths[part][layer] for part in song_arrangement
-        ]
-        midi_final_paths[layer] = _concat_layer_midis(
-            part_midi_paths, part_durations_s, tempo_bpm,
-            os.path.join(midi_dir, f"{layer}.mid"),
-        )
+    if _write_midi:
+        os.makedirs(midi_dir, exist_ok=True)
+        for layer in _LAYERS:
+            part_midi_paths = [
+                midi_working_paths[part][layer] for part in song_arrangement
+            ]
+            midi_final_paths[layer] = _concat_layer_midis(
+                part_midi_paths, part_durations_s, tempo_bpm,
+                os.path.join(midi_dir, f"{layer}.mid"),
+            )
 
     # Step 2: per-layer stem WAV concat (pydub, matches mixer.concat_parts).
     stem_final_paths: Dict[str, str] = {}
-    for layer in _LAYERS:
-        part_stem_paths = [
-            stems_working_paths[part][layer] for part in song_arrangement
-        ]
-        stem_final_paths[layer] = _concat_layer_stems(
-            part_stem_paths,
-            os.path.join(stems_dir, f"{layer}.wav"),
-        )
+    if _write_stems:
+        os.makedirs(stems_dir, exist_ok=True)
+        for layer in _LAYERS:
+            part_stem_paths = [
+                stems_working_paths[part][layer] for part in song_arrangement
+            ]
+            stem_final_paths[layer] = _concat_layer_stems(
+                part_stem_paths,
+                os.path.join(stems_dir, f"{layer}.wav"),
+            )
 
     # Step 3: mix.wav — copy from working dir (different filesystem may apply).
-    mix_final = os.path.join(sample_dir, "mix.wav")
-    shutil.copy2(mix_working_path, mix_final)
+    mix_final = ""
+    if _write_mix:
+        mix_final = os.path.join(sample_dir, "mix.wav")
+        shutil.copy2(mix_working_path, mix_final)
 
-    # Step 4: sum-of-stems assertion (RESEARCH Pitfall 2 — int32 accumulator).
-    passed, max_diff = _assert_sum_of_stems(
-        mix_final, stem_final_paths, epsilon=sum_of_stems_epsilon,
-    )
-    if not passed:
-        raise AssertionError(
-            f"sum_of_stems_exceeded: max |Σstems − mix| = {max_diff:.6f} "
-            f"> ε = {sum_of_stems_epsilon:.6f}"
+    # Step 4: sum-of-stems assertion — only meaningful when both are written.
+    max_diff = 0.0
+    if _write_stems and _write_mix:
+        passed, max_diff = _assert_sum_of_stems(
+            mix_final, stem_final_paths, epsilon=sum_of_stems_epsilon,
         )
+        if not passed:
+            raise AssertionError(
+                f"sum_of_stems_exceeded: max |Σstems − mix| = {max_diff:.6f} "
+                f"> ε = {sum_of_stems_epsilon:.6f}"
+            )
 
-    # Step 5: path rewrite (deep-copy; D-11/D-12 — annotator stays pure).
+    # Step 5a: apply pre-roll offset to beat/downbeat times (D-53).
+    anno_copy = copy.deepcopy(annotation)
+    anno_copy = _apply_preroll_offset(anno_copy, pre_roll_offset_s)
+
+    # Step 5b: path rewrite (D-11/D-12 — annotator stays pure).
     final_annotation = _rewrite_paths_relative(
-        annotation, stem_final_paths.keys(), midi_final_paths.keys(),
+        anno_copy,
+        stem_final_paths.keys() if _write_stems else [],
+        midi_final_paths.keys() if _write_midi else [],
     )
     final_annotation["split"] = split
-    # fluidsynth_version preserved from annotator — no rewrite needed.
+    if not _write_mix:
+        final_annotation["mix"] = ""
+    if not _write_stems:
+        final_annotation["stems"] = {}
+    if not _write_midi:
+        final_annotation["midi"] = {}
+    final_annotation["pre_roll_offset_seconds"] = pre_roll_offset_s
 
     # Step 6+7: canonical serialization + atomic sentinel rename.
     sample_json_tmp = os.path.join(sample_dir, "sample.json.tmp")
@@ -145,19 +151,36 @@ def write_sample(
     os.rename(sample_json_tmp, sample_json_final)
 
     logger.info(
-        "Wrote sample %d to %s (split=%s, max |Σstems-mix|=%.6f)",
-        sample_index, sample_dir, split, max_diff,
+        "Wrote sample %d to %s (mode=%s, split=%s, max |Σstems-mix|=%.6f)",
+        sample_index, sample_dir, output_mode, split, max_diff,
     )
 
     result = {
         "sample_dir": sample_dir,
         "sample_json": sample_json_final,
-        "mix": mix_final,
     }
+    if _write_mix:
+        result["mix"] = mix_final
     for layer in _LAYERS:
-        result[f"stems_{layer}"] = stem_final_paths[layer]
-        result[f"midi_{layer}"] = midi_final_paths[layer]
+        if _write_stems:
+            result[f"stems_{layer}"] = stem_final_paths[layer]
+        if _write_midi:
+            result[f"midi_{layer}"] = midi_final_paths[layer]
     return result
+
+
+def _apply_preroll_offset(anno_copy: dict, offset_s: float) -> dict:
+    """Shift beat_times and downbeat_times by pre-roll offset (D-53, R-P9)."""
+    if offset_s == 0.0:
+        return anno_copy
+    for key in ("beat_times", "downbeat_times"):
+        if key in anno_copy and isinstance(anno_copy[key], list):
+            anno_copy[key] = [
+                round(t - offset_s, 6)
+                for t in anno_copy[key]
+                if t - offset_s >= 0.0
+            ]
+    return anno_copy
 
 
 def _concat_layer_stems(
