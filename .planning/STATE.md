@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: — docs, polish, regression suite
-status: Phase 05 COMPLETE — verified (9/9 must-haves; 2 deferred operator UAT items in 05-HUMAN-UAT.md)
-last_updated: "2026-04-20T01:35:00Z"
+status: Phase 06 IN PROGRESS — discuss + plan complete; 6 plans pending execution
+last_updated: "2026-04-28T00:00:00Z"
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 25
+  total_plans: 31
   completed_plans: 25
-  percent: 100
+  percent: 81
 ---
 
 # STATE
@@ -19,17 +19,17 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 **Core value:** Every generated sample is a complete, reproducible, fully-labeled training example.
-**Current focus:** Phase 05 — productize-i-writer-manifest-seeds-determinism
+**Current focus:** Phase 06 — productize-ii-calibrate-batch-cli-resumability
 
 ## Current position
 
-Phase: 5 COMPLETE
-Plan: 05-06 complete (Wave 4 — tests/test_determinism_golden.py populated with TestDeterminismGoldens 6-artifact parametrized slow oracle + TestSameProcessStability fast D-30 in-process cross-check; --regen-goldens flag pathway + fluidsynth_version.txt xfail gate; fixtures README refined to maintainer playbook; R-P8 + R-Q3 closed). Phase 5 architecturally complete: 25/25 plans landed. Ready for verification gates. Next: Phase 6 (CLI + generate_batch + multi-process).
+Phase: 6 IN PROGRESS
+Plan: 06-01 pending (Wave 0 — test scaffolding stubs + AST guard update). Phase 5 architecturally complete: 25/25 plans landed. Phase 6 discuss + plan complete: 06-CONTEXT.md, 06-DISCUSSION-LOG.md, 06-PATTERNS.md, 06-RESEARCH.md, and 6 PLAN.md files created. Next: execute 06-01 (Wave 0 stubs) then 06-02 through 06-06.
 
 - Initialized: 2026-04-08
 - Milestone: v0.1 (Stabilize + Extract + Productize)
-- Active phase: Phase 05 (Productize I) context gathered 2026-04-19 (auto mode); ready for planning
-- Resume file: .planning/phases/05-productize-i-writer-manifest-seeds-determinism/05-CONTEXT.md
+- Active phase: Phase 06 (Productize II) context gathered 2026-04-28 (auto mode); plans ready for execution
+- Resume file: .planning/phases/06-productize-ii-calibrate-batch-cli-resumability/06-01-PLAN.md
 - Progress: Phase 02 complete; Phase 03 Wave 1 (Plan 03-01 — pyproject.toml + src/musicgen/ skeleton) complete; Phase 03 Wave 2 (Plan 03-02 — git mv enhanced_duration_validator.py → src/musicgen/duration_validator.py) complete; Phase 03 Wave 3 (Plan 03-03 — sampler extraction) complete; Phase 03 Wave 4 (Plan 03-04 — generators extraction, 368 tests, R-X3 closed) complete; Phase 03 Wave 5 (Plan 03-05 — music21 isolation regression test + tests/conftest.py deletion + phase-gate verification) complete, 371 tests pass, zero bare random.* across src/musicgen/, R-X1/R-X2/R-X3 all verified. Phase 3 architecturally closed. Phase 04 Waves 0-5 complete (beats + renderer + mixer + annotator + orchestrator collapse); music_gen.py collapsed to 199 lines, beat_anotator.py deleted, 504 tests pass.
 - Mode: Interactive
 - Granularity: Standard
