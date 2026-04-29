@@ -72,6 +72,10 @@ class Config:
     output_mode: str = "full"   # R-P14: full | mix-only | stems-only | midi-only
     count: int = 1              # R-P12: number of samples for generate_batch
 
+    # --- soundfont_manager integration (opt-in, v0.2) ---
+    soundfont_manager_db: Optional[str] = None      # path to SoundfontManager JSON db
+    soundfont_manager_sf_dir: Optional[str] = None  # base dir for .sf2 files (sm sf2_directory)
+
     _VALID_OUTPUT_MODES = frozenset({"full", "mix-only", "stems-only", "midi-only"})
 
     def __post_init__(self):
@@ -132,6 +136,12 @@ class Config:
                 cfg.count = int(count_env)
             except ValueError:
                 logger.warning("MUSICGEN_COUNT is not an integer: %r", count_env)
+        sfm_db_env = os.environ.get("MUSICGEN_SOUNDFONT_MANAGER_DB")
+        if sfm_db_env:
+            cfg.soundfont_manager_db = os.path.abspath(sfm_db_env)
+        sfm_sf_dir_env = os.environ.get("MUSICGEN_SOUNDFONT_MANAGER_SF_DIR")
+        if sfm_sf_dir_env:
+            cfg.soundfont_manager_sf_dir = os.path.abspath(sfm_sf_dir_env)
 
         # cli layer (D-02 top layer; framework-agnostic — avoids typer dep in Phase 2)
         if cli_overrides:
