@@ -30,6 +30,7 @@ import typer
 from musicgen.api import Config
 from musicgen import calibrate
 from musicgen.batch import generate_batch
+from musicgen.midi_indexer import index_midi_dataset
 
 app = typer.Typer(
     help="musicgen — synthetic music dataset generator",
@@ -170,6 +171,42 @@ def calibrate_cmd(
         typer.echo(
             "(FluidSynth absent or no soundfonts found — offset defaulted to 0.0)"
         )
+
+
+@app.command(name="index-midi")
+def index_midi(
+    dataset: str = typer.Option(..., "--dataset", "-d", help="musicgen dataset root directory."),
+    out: str = typer.Option("./midi_db.json", "--out", "-o", help="Output MidiManager JSON database path."),
+    midi_dir: Optional[str] = typer.Option(None, "--midi-dir", help="Base dir for relative MIDI paths stored in the db."),
+    export_csv: Optional[str] = typer.Option(None, "--csv", help="Also export a CSV of all indexed entries."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
+) -> None:
+    """Index generated MIDI files into a MidiManager database (midi_file_manager)."""
+    _setup_logging(verbose, quiet)
+
+    dataset_path = os.path.abspath(dataset)
+    out_path = os.path.abspath(out)
+    csv_path = os.path.abspath(export_csv) if export_csv else None
+    midi_dir_path = os.path.abspath(midi_dir) if midi_dir else None
+
+    try:
+        count = index_midi_dataset(
+            dataset_root=dataset_path,
+            out_db=out_path,
+            midi_dir=midi_dir_path,
+            export_csv=csv_path,
+        )
+    except ImportError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+    except FileNotFoundError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Indexed {count} MIDI entries → {out_path}")
+    if csv_path:
+        typer.echo(f"CSV exported → {csv_path}")
 
 
 if __name__ == "__main__":
