@@ -99,8 +99,9 @@ def test_package_scan_covers_all_package_modules():
         "seeds.py", "writer.py", "manifest.py", "api.py", "musicality.py",
         # Phase 6 additions (land in Waves 2-3):
         "calibrate.py", "batch.py",
-        # Integration 2 addition (v0.2):
+        # Integration 2 + 3 additions (v0.2):
         "midi_indexer.py",
+        "audio_indexer.py",
         os.path.join("generators", "beat.py"),
         os.path.join("generators", "chord.py"),
         os.path.join("generators", "melody.py"),
