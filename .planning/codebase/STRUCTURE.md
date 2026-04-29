@@ -19,7 +19,7 @@ musicgen/                               # repo root
 │       ├── __main__.py                 # python -m musicgen support
 │       ├── api.py                      # generate(config) -> SampleResult
 │       ├── batch.py                    # generate_batch(config) -> BatchResult
-│       ├── cli.py                      # typer app: generate / clean / calibrate
+│       ├── cli.py                      # typer app: generate / clean / calibrate / index-midi / index-audio
 │       ├── sampler.py                  # song-level parameter sampling; SongParams
 │       ├── seeds.py                    # RNG hierarchy; derive_sample_seed; make_rngs
 │       ├── renderer.py                 # FluidSynth wrapper; pick_soundfonts; RenderResult
@@ -29,6 +29,8 @@ musicgen/                               # repo root
 │       ├── writer.py                   # atomic per-sample layout; sum-of-stems assertion
 │       ├── manifest.py                 # JSONL manifest writer; is_sample_complete
 │       ├── calibrate.py                # FluidSynth pre-roll measurement and cache
+│       ├── midi_indexer.py             # index_midi_dataset: indexes MIDI files into MidiManager db
+│       ├── audio_indexer.py            # index_audio_dataset: indexes WAV stems into SampleManager db
 │       ├── musicality.py               # librosa-based audio quality scoring
 │       ├── duration_validator.py       # time-signature-aware note duration validation
 │       └── generators/
@@ -66,6 +68,8 @@ musicgen/                               # repo root
 │   ├── test_music_gen_logging.py       # smoke wrapper logging
 │   ├── test_integration_full_generation.py  # end-to-end slow integration test
 │   ├── test_integration_batch.py       # batch integration with real spawn context
+│   ├── test_midi_indexer.py        # midi_file_manager integration tests
+│   ├── test_audio_indexer.py       # audio_sample_manager integration tests
 │   └── test_generators/
 │       ├── test_chord.py
 │       ├── test_melody.py
@@ -113,7 +117,7 @@ musicgen/                               # repo root
 | Public library API | `src/musicgen/__init__.py` — `generate`, `generate_batch`, `Config`, `SampleResult`, `BatchResult`, `__version__` |
 | Single-sample orchestrator | `src/musicgen/api.py` — `generate(config)` and `_run_pipeline` |
 | Batch generation | `src/musicgen/batch.py` — `generate_batch(config)` |
-| CLI commands | `src/musicgen/cli.py` — `generate`, `clean`, `calibrate` commands |
+| CLI commands | `src/musicgen/cli.py` — `generate`, `clean`, `calibrate`, `index-midi`, `index-audio` commands |
 | Config dataclass | `config.py` (repo root) — `Config.load(cli_overrides)` |
 | Song parameter sampling | `src/musicgen/sampler.py` — `generate_random_key`, `generate_random_tempo`, etc. |
 | RNG hierarchy | `src/musicgen/seeds.py` — `derive_sample_seed`, `make_rngs`, `assign_split`, `save_random_state` |
@@ -124,6 +128,8 @@ musicgen/                               # repo root
 | Atomic write + sum-of-stems | `src/musicgen/writer.py` — `write_sample(...)` |
 | Manifest (JSONL) | `src/musicgen/manifest.py` — `ManifestWriter`, `is_sample_complete` |
 | Pre-roll calibration | `src/musicgen/calibrate.py` — `load_preroll`, `measure_and_save_preroll` |
+| MIDI indexing | `src/musicgen/midi_indexer.py` — `index_midi_dataset` |
+| Audio indexing | `src/musicgen/audio_indexer.py` — `index_audio_dataset` |
 | Audio quality metrics | `src/musicgen/musicality.py` — `get_musicality_score` |
 | Note duration validation | `src/musicgen/duration_validator.py` — `DurationValidator` |
 | Time signature registry | `timesig.py` (repo root) — `TimeSignatureRegistry` |

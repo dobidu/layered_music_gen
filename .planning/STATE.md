@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1
-milestone_name: Ship v0.1 — docs, polish, regression suite
-status: MILESTONE COMPLETE — v0.1.0 tagged 2026-04-28
-last_updated: "2026-04-28T00:00:00Z"
+milestone: v0.2
+milestone_name: Sibling ecosystem integrations
+status: MILESTONE COMPLETE — v0.1.0 tagged 2026-04-28; v0.2 integrations complete 2026-04-29
+last_updated: "2026-04-29T00:00:00Z"
 progress:
   total_phases: 7
   completed_phases: 7
@@ -97,11 +97,11 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 ## Next steps
 
-**Milestone complete.** Optional post-release tasks:
+**v0.2 integrations complete** (branch `feat/soundfont-manager`, 794 fast tests). Optional post-release tasks:
 
 - Run `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on a pinned-FluidSynth host to capture the 6 golden SHA-256s + fluidsynth_version.txt and commit them.
-- Merge PR #2 (`release/v0.1.0` → `main`) after review.
-- Begin planning v0.2 (Extend: broader musical vocabulary, richer chord progressions, more drum/genre patterns).
+- Merge PR #2 (`release/v0.1.0` → `main`) after review; open a PR for `feat/soundfont-manager` → `release/v0.1.0`.
+- Begin planning v0.3 (Extend: broader musical vocabulary, richer chord progressions, more drum/genre patterns).
 
 ---
 
@@ -120,4 +120,4 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 - **2026-04-20 (Plan 05-06):** Wave 4 final Phase 5 plan landed via sequential executor in one atomic commit (`04570b5`). `tests/test_determinism_golden.py` Wave 0 stub (15 lines) replaced with 268-line real body: TestDeterminismGoldens (@pytest.mark.slow + class-level skipif-no-fluidsynth + class-level skipif-no-sf2) parametrized over 6 artifacts (mix, 4 MIDIs, sample.json); --regen-goldens capture mode writes expected_*.sha256 + fluidsynth_version.txt per D-32; mix.wav case xfails on FluidSynth version mismatch via _fluidsynth_version_matches_golden() (R-P8 pinned-binary contract); MIDI + sample.json hashes assert unconditionally; pytest.skip fallback on missing golden fixture (self-documenting first-time setup). TestSameProcessStability (fast, no FluidSynth, D-30) monkeypatches `musicgen.api.renderer.render_stems` + `musicgen.api.renderer.pick_soundfonts` + `musicgen.api.musicality.get_musicality_score` with deterministic stubs that preserve RNG draw count parity (rng.choice per layer in pick_soundfonts stub); runs generate() twice in-process with distinct dataset_roots; hashes sample.json bytes; asserts byte-identity. fixtures README refined from 19-line skeleton to 44-line maintainer playbook (7-file layout table, pip-install-e prereq per RESEARCH Pitfall 4, three-branch interpretation guide). One deviation: Rule 3 blocking fix — added _fake_pick_soundfonts stub beyond plan's verbatim spec because pick_soundfonts is called BEFORE render_stems in api._run_pipeline and raises FileNotFoundError when sf/<layer>/ dirs are empty (dev-machine default); plan missed this. Dev-machine profile locked: 6 slow cases SKIP cleanly (no FluidSynth on this host); TestSameProcessStability PASSES in ~1.4s. Full suite: 689 → 690 passed (+1 net from D-30), 0 failed, 12 deselected under `-m "not slow"` (6 prior slow + 6 new parametrized goldens); --regen-goldens flag still advertised via `.venv/bin/pytest --help | grep regen-goldens`. R-P8 + R-Q3 CLOSED. Phase 5 architecturally complete: 25/25 plans landed. Post-phase operator task (out of scope): capture actual golden hashes via `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on a pinned-FluidSynth host + commit the 7 fixture files. Until then, slow cases skip with instructional message; CI green is preserved without pinning CI's FluidSynth version as a Phase 5 requirement.
 
 ---
-*Last updated: 2026-04-20 after Plan 05-06 sequential execution. Progress: 24 → 25 / 25 plans (100%). Phase 5 COMPLETE. Next: verification gates then Phase 6 (typer CLI + generate_batch + multi-process).*
+*Last updated: 2026-04-29 after v0.2 integration work. v0.1 (7 phases, 31 plans) + v0.2 (3 integrations: SoundfontManager, MIDI indexer, audio indexer) COMPLETE. 794 fast tests. Branch feat/soundfont-manager. Next: PR for feat/soundfont-manager → release/v0.1.0, then v0.3 planning.*
