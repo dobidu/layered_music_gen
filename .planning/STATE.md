@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.2
-milestone_name: Sibling ecosystem integrations
-status: MILESTONE COMPLETE — v0.1.0 tagged 2026-04-28; v0.2 integrations complete 2026-04-29
-last_updated: "2026-04-29T00:00:00Z"
+milestone_name: Extend — Genre System
+status: PLANNING — v0.1.0 tagged 2026-04-28; v0.2 ecosystem integrations complete 2026-04-29; v0.2 genre system planned 2026-05-06
+last_updated: "2026-05-06T00:00:00Z"
 progress:
   total_phases: 7
   completed_phases: 7
@@ -97,11 +97,23 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 ## Next steps
 
-**v0.2 integrations complete** (branch `feat/soundfont-manager`, 794 fast tests). Optional post-release tasks:
+**v0.2 genre system planned** — branch `feat/genre-system`. 8 phases:
+1. GenreSpec + composition engine (`genre.py`, merge algebra)
+2. Chord vocabulary expansion (7th/9th/sus/dim7/maj7/m7b5 + inversions, genre-constrained)
+3. Drum pattern reorganization (`genres/<name>/patterns_<sig>.txt`, loader union)
+4. Sampler + FX genre integration (tempo/swing hard bounds, scale/time-sig soft weights)
+5. Soundfont genre integration (genre tags replace static `_LAYER_TAGS`)
+6. Built-in genre presets (jazz, hip-hop, blues, pop, electronic, latin, reggae, classical)
+7. Docs + CLI (`--genre jazz latin`, `--list-genres`, genres/README.md)
+8. Jupyter notebook (`notebooks/musicgen_demo.ipynb`, 12 sections)
 
-- Run `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on a pinned-FluidSynth host to capture the 6 golden SHA-256s + fluidsynth_version.txt and commit them.
-- Merge PR #2 (`release/v0.1.0` → `main`) after review; open a PR for `feat/soundfont-manager` → `release/v0.1.0`.
-- Begin planning v0.3 (Extend: broader musical vocabulary, richer chord progressions, more drum/genre patterns).
+**v0.3 planned** — higher-order Markov (chord 2nd-order, melody 2nd-order, regeneration quality gate). Branch `feat/higher-order-markov`.
+
+**Documentation rule (locked):** every functional PR must update README.md + relevant planning docs before merge.
+
+Optional post-release:
+- Run `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on pinned-FluidSynth host; commit 6 golden SHA-256s.
+- Merge PR #2 (`release/v0.1.0` → `main`) after review.
 
 ---
 

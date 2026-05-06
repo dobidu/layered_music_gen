@@ -279,10 +279,214 @@ Phase 3 and Phase 4 are parallelizable once Phase 2 is done.
 
 Every requirement in `REQUIREMENTS.md` maps to at least one phase.
 
+## v0.2 — Extend: Genre System
+
+**Branch:** `feat/genre-system`
+**Goal:** Introduce a genre-aware generation system: a `GenreSpec` config layer that constrains sampler draws, chord vocab, drum patterns, FX profiles, and soundfont selection. Genres are composable from day one.
+
+**Depends on:** v0.1.0 + v0.2 integrations shipped.
+
+**Documentation rule:** Every phase that lands functional code must update `README.md` (CLI section, Config table, or Architecture) + relevant `.planning/` docs in the same PR. No functional merge without doc update.
+
+---
+
+### v0.2 Phase 1 — GenreSpec + composition engine
+
+**Goal:** Define `GenreSpec` dataclass and the genre-merge algorithm. Wire `Config.genre` field. No sampler changes yet — infrastructure only.
+
+**Deliverables:**
+- `src/musicgen/genre.py` — `GenreSpec` dataclass with all dimension fields (tempo, time_sig weights, swing, scales, chord types, inversions, layer probs, soundfont tags, drum pool names, FX profile, arrangement shape)
+- `genres/<name>/spec.json` schema (validated against `GenreSpec` at load time)
+- `Config.genre: Optional[List[str]]` — list of genre names to compose
+- `genre.py::load_genre(name) -> GenreSpec` — reads from `genres/<name>/spec.json`
+- `genre.py::merge_genres(specs, weights=None) -> GenreSpec` — composition engine:
+  - Hard numeric ranges (tempo, swing): intersection of all active genres
+  - Soft weights (time sig, scale, chord types, inversions): normalized weighted average
+  - Sets (soundfont tags, drum pool names): union
+  - Priority: first genre listed wins ties on hard constraints
+- `Config.load()` precedence updated: `CLI > env > genre-merged > defaults`
+- Tests: merge algebra (intersection, union, weighted avg), precedence chain, unknown genre → `FileNotFoundError`
+
+---
+
+### v0.2 Phase 2 — Chord vocabulary expansion
+
+**Goal:** Extend `generators/chord.py` to support richer chord types and inversions, genre-constrained.
+
+**Deliverables:**
+- New chord types: `maj`, `min`, `dom7`, `maj7`, `m7`, `m7b5`, `dim7`, `sus2`, `sus4`, `9`, `maj9`, `m9`, `add9`
+- Inversion support: root / 1st / 2nd / 3rd — each generates correct MIDI voicing (note stack with octave shifts)
+- Genre controls chord pool (hard: which types are allowed) and weights (soft: probability per type/inversion)
+- `chord_patterns.txt` gains genre tag headers per pattern block: `# [genre: jazz, blues]`
+- Chord pattern loader filters by active genre union; falls back to untagged patterns if no genre set
+- Tests: voicing correctness per chord type + inversion, genre hard-filter removes disallowed types, soft weights shift distribution
+
+---
+
+### v0.2 Phase 3 — Drum pattern reorganization
+
+**Goal:** Reorganize `beat_roll_patterns_*.txt` files from flat repo-root files into per-genre directories. Pattern loader merges pools from all active genres.
+
+**New layout:**
+```
+genres/
+  default/
+    patterns_24.txt  patterns_34.txt  patterns_44.txt
+    patterns_54.txt  patterns_68.txt  patterns_78.txt  patterns_128.txt
+  jazz/
+    patterns_34.txt  patterns_44.txt  patterns_54.txt  patterns_68.txt
+  hip-hop/
+    patterns_44.txt
+  blues/  latin/  pop/  electronic/  reggae/  classical/
+    patterns_*.txt (applicable sigs only)
+```
+- Old `beat_roll_patterns_*.txt` at repo root → moved to `genres/default/`
+- `Config.beat_roll_pattern_dirs` list replaces single-file field; defaults to `["genres/default"]`
+- Pattern loader: union of all active genre pattern files for the active time signature; deduplicates patterns
+- Backward compat: no-genre config uses `genres/default/` identically to old behavior
+- Tests: loader union, dedup, missing-genre file → skip (not error), fallback to default
+
+---
+
+### v0.2 Phase 4 — Sampler + FX genre integration
+
+**Goal:** Sampler draws respect `GenreSpec` constraints. FX boards use genre FX profile as shifted default ranges.
+
+**Deliverables:**
+- `sampler.py` reads active `GenreSpec` for:
+  - Tempo: hard bounds (`GenreSpec.tempo_min`, `tempo_max`) — `generate_random_tempo` clamps draw
+  - Time signature: soft weights (`GenreSpec.time_sig_weights`) — `generate_random_time_signature` uses weighted choice
+  - Swing: hard bounds (`GenreSpec.swing_min`, `swing_max`) — draw clamped
+  - Scale/mode: soft weights (`GenreSpec.scale_weights`) — `generate_random_key` uses weighted choice
+  - Layer active probabilities: `GenreSpec.layer_probs` overrides `inst_probabilities.json` defaults when genre set
+- `mixer.py` `build_fx_boards`: genre FX profile shifts center of FX parameter ranges (soft — full range still accessible, but midpoint moves per genre)
+- `api.py` resolves + merges genre specs once at start, passes merged `GenreSpec` down through all stages
+- Tests: seeded draws within genre bounds, weighted distribution shift vs baseline, no-genre → identical behavior to pre-genre
+
+---
+
+### v0.2 Phase 5 — Soundfont genre integration
+
+**Goal:** Genre `soundfont_tags` replaces static `_LAYER_TAGS` in `renderer.py` when genre is active.
+
+**Deliverables:**
+- `renderer._pick_via_soundfont_manager` accepts optional `layer_tags: Dict[str, List[str]]` override
+- When genre active: `GenreSpec.soundfont_tags[layer]` → passed as `layer_tags`
+- When no genre: static `_LAYER_TAGS` (existing behavior, backward compat)
+- When SM not installed: fallback chain unchanged
+- `sample.json` `soundfonts` field records which SF2 was used per layer (already present; no schema change)
+- Tests: genre tags override static tags, fallback chain still works, no-SM still falls back to directory scan
+
+---
+
+### v0.2 Phase 6 — Built-in genre presets
+
+**Goal:** Ship 8 genre presets, each with `spec.json` + genre-tagged drum pattern files.
+
+**Genres:** `jazz`, `hip-hop`, `blues`, `pop`, `electronic`, `latin`, `reggae`, `classical`
+
+**Per genre deliverables:**
+- `genres/<name>/spec.json` — full `GenreSpec` with all dimensions filled
+- `genres/<name>/patterns_<sig>.txt` — drum patterns for applicable time signatures
+- Smoke test: generate 1 sample per genre, assert `sample.json` fields within genre bounds (tempo, swing, time_sig in allowed set)
+- README: `## Built-in genres` table listing each genre + key characteristics
+
+---
+
+### v0.2 Phase 7 — Docs + CLI genre support
+
+**Goal:** Expose genre system fully in CLI + document everything.
+
+**Deliverables:**
+- `musicgen generate --genre jazz` single genre
+- `musicgen generate --genre jazz latin` composition (space-separated; typer `List[str]`)
+- `musicgen generate --list-genres` prints available genres + one-line description each
+- `genres/README.md` — spec format documentation, how to write custom genres, composition semantics
+- README.md: Configuration table gains `genre` field; new "Genre system" section with usage examples
+- `.planning/codebase/INTEGRATIONS.md` / `STRUCTURE.md` updated
+
+---
+
+### v0.2 Phase 8 — Jupyter notebook: feature showcase
+
+**Goal:** End-to-end runnable notebook demonstrating all major features. Serves as living docs + acceptance test.
+
+**File:** `notebooks/musicgen_demo.ipynb`
+
+**Sections:**
+1. Setup — install check, `Config` basics, FluidSynth presence check
+2. Single sample generation — `generate()`, inspect `sample.json`, display fields
+3. Batch generation — `generate_batch()`, manifest inspection, stats
+4. Output modes — `full` / `stems-only` / `midi-only` side-by-side layout
+5. Genre generation — single genre (`jazz`), compare `sample.json` fields vs no-genre baseline
+6. Genre composition — `genre=["jazz", "latin"]`, show merged `GenreSpec` fields
+7. Audio playback — `IPython.display.Audio` for mix + each stem
+8. MIDI visualization — `pretty_midi` piano roll plot per layer
+9. Musicality score — bar chart of component scores across small batch
+10. MIDI indexing — `index_midi_dataset()`, query result from `MidiManager`
+11. Audio indexing — `index_audio_dataset()`, cross-library query example
+12. Determinism check — generate same `(seed, index)` twice, assert `sample.json` SHA-256 match
+
+Cells requiring FluidSynth tagged `# requires: fluidsynth` with graceful skip if binary absent. Notebook runnable top-to-bottom on machine with FluidSynth + ≥ 1 `.sf2` per layer.
+
+---
+
+## v0.3 — Research: Higher-Order Markov
+
+**Branch:** `feat/higher-order-markov`
+**Goal:** Replace first-order / pattern-lookup chord and melody generation with configurable higher-order Markov chains. Add quality-gated regeneration loops.
+
+**Depends on:** v0.2 genre system shipped (Markov matrices are per-genre).
+
+**Documentation rule:** Same as v0.2 — every functional phase updates README.md + relevant planning docs in same PR.
+
+---
+
+### v0.3 Phase 1 — Chord progression: 2nd-order Markov
+
+**Goal:** Replace `chord_patterns.txt` pattern-lookup with Markov transition matrix: `P(chord_N | chord_{N-1}, chord_{N-2})`.
+
+**Deliverables:**
+- `GenreSpec` gains `chord_transition_matrix: Optional[Dict]` — 2nd-order transition table (chord pair → next chord distribution)
+- `genres/<name>/chord_transitions.json` — per-genre transition matrix (defined as Roman numeral pairs to avoid key lock-in)
+- `generators/chord.py` `generate_chord_progression` checks for matrix; falls back to pattern-file if absent (backward compat)
+- `Config.markov_order: int = 1` — 1 = current behavior, 2 = 2nd-order; higher orders via same code path
+- Boundary handling: start of progression uses 1st-order until history is long enough
+- Tests: matrix produces valid chord sequences, same seed = same sequence, fallback to patterns when no matrix, order=1 matches pre-refactor output
+
+---
+
+### v0.3 Phase 2 — Melody: higher-order Markov
+
+**Goal:** Upgrade `generators/melody.py` to configurable-order Markov over scale-relative intervals.
+
+**Deliverables:**
+- Transition matrices defined in scale-relative interval space (not absolute pitches) — stays key-agnostic
+- `GenreSpec` gains `melody_transition_matrix: Optional[Dict]` + `melody_markov_order: int = 2`
+- `genres/<name>/melody_transitions.json` — per-genre matrices
+- Fallback: no matrix → existing behavior
+- Tests: relative-interval encoding correct, seed-deterministic, order-1 matches prior output
+
+---
+
+### v0.3 Phase 3 — Regeneration loops (quality gate)
+
+**Goal:** Low-quality samples get re-rolled automatically before being written.
+
+**Deliverables:**
+- `Config.min_musicality_score: Optional[float] = None` — opt-in quality gate (disabled by default)
+- `Config.max_attempts: int = 3` — max re-roll attempts
+- Seed derivation for attempt k: `sha256(f"{global_seed}:{sample_index}:attempt={k}")` — deterministic, reproducible
+- `api.py` loop: generate → score → if score < threshold and attempts remain → re-roll
+- `sample.json` gains `attempt: int` field (1-indexed; 1 = no re-roll needed)
+- Manifest gains `attempt` field + `status: "low_quality"` for samples that exhausted attempts but still didn't meet threshold
+- Tests: gate disabled → no re-roll, gate enabled → re-roll until threshold or max_attempts, deterministic per attempt, manifest reflects final status
+
+---
+
 ## Out of this milestone (future work)
 
-- **v0.2 — Extend:** broader musical vocabulary, richer chord progressions, more drum/genre patterns, additional time signatures, broader soundfont pool.
-- **v0.3 — Research:** smarter Markov / ML-assisted generators, musicality-aware regeneration experiments (opt-in, never default).
+- **v0.4 — ML-assisted generators:** ML-assisted chord/melody generation (trained on real MIDI corpora), model-guided regeneration.
 - **v0.? — Public release:** soundfont license audit, CC0/MIT soundfont replacement, HF Datasets / WebDataset exporters, sharded directory layout for 100k+.
 
 ## Risks and mitigations (carried from research)
