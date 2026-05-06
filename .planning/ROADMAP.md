@@ -221,6 +221,24 @@ Plans:
 
 ---
 
+## v0.2 Integrations — Sibling Ecosystem
+
+**Goal:** Connect musicgen to three sibling repos (soundfont_manager, midi_file_manager, audio_sample_manager) without adding hard dependencies.
+
+**Depends on:** v0.1.0 shipped.
+
+**Deliverables**
+
+- Integration 1 — soundfont_manager: `pick_soundfonts()` becomes metadata-aware when `cfg.soundfont_manager_db` is set. Falls back to directory scan otherwise. Seed-deterministic via sorted candidate list + rng.choice. Layer-to-tag mapping (beat→drums/percussion, melody→melody/lead/piano/strings, harmony→harmony/chords/pads, bassline→bass).
+- Integration 2 — midi_file_manager: `musicgen index-midi` CLI command. `index_midi_dataset()` library function. Walks dataset MIDI files, cross-references sample.json for ground-truth BPM/key/time_sig, stores enriched index in MidiManager JSON db. Optional CSV export.
+- Integration 3 — audio_sample_manager: `musicgen index-audio` CLI command. `index_audio_dataset()` library function. Walks dataset WAV stems, applies ground-truth override (bpm/key/time_sig/scale), marks is_loop=False, stores in SampleManager db. Enables cross-library queries.
+
+**Status:** ✓ COMPLETE (branch feat/soundfont-manager, 793 tests passing)
+
+**Requirements covered:** R-E1 (extend soundfont pool), R-P10 (downstream consumers)
+
+---
+
 ## Phase dependency graph
 
 ```

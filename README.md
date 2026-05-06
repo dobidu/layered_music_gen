@@ -6,9 +6,10 @@ Suitable for training models that learn music tagging, source separation, beat/t
 
 ## Status
 
-- **Milestone v0.1 — complete.** All 7 phases shipped.
+- **Milestone v0.1 — complete.** All 7 phases shipped. Tag `v0.1.0`.
+- **v0.2 integrations — complete** (branch `feat/soundfont-manager`). Three opt-in sibling-ecosystem integrations: SoundfontManager-backed soundfont selection, MIDI indexing, and audio stem indexing. Zero new hard dependencies.
 - **What's in v0.1:** single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
-- **Test suite:** 745 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
+- **Test suite:** 794 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
 
 ## Core value
 
@@ -74,9 +75,33 @@ musicgen clean --failed --out ./dataset
 
 # Measure and cache FluidSynth pre-roll offset (run once per machine)
 musicgen calibrate
+
+# Index all generated MIDI files into a MidiManager database (optional — requires midi_file_manager)
+musicgen index-midi --dataset ./dataset --out ./midi_db.json
+
+# Index all generated WAV stems into a SampleManager database (optional — requires audio_sample_manager)
+musicgen index-audio --dataset ./dataset --out ./audio_db.json
 ```
 
 Output mode choices: `full` (default) | `mix-only` | `stems-only` | `midi-only`.
+
+#### `index-midi` options
+
+| Option | Default | Description |
+|---|---|---|
+| `--dataset PATH` | (required) | Root of a musicgen dataset (contains numbered sample dirs). |
+| `--out PATH` | `./midi_db.json` | Output MidiManager database file. |
+| `--midi-dir PATH` | `None` | Base directory for MIDI files if the db stores relative paths. |
+| `--csv PATH` | `None` | If set, also export the database as CSV. |
+
+#### `index-audio` options
+
+| Option | Default | Description |
+|---|---|---|
+| `--dataset PATH` | (required) | Root of a musicgen dataset. |
+| `--out PATH` | `./audio_db.json` | Output SampleManager database file. |
+| `--samples-dir PATH` | `None` | Base directory for WAV files if the db stores relative paths. |
+| `--csv PATH` | `None` | If set, also export the database as CSV. |
 
 ### Library API
 
@@ -134,6 +159,8 @@ python music_gen.py
 | `count` | `1` | Number of samples for `generate_batch`. Override via `MUSICGEN_COUNT`. |
 | `output_mode` | `"full"` | `full` / `mix-only` / `stems-only` / `midi-only`. Override via `MUSICGEN_OUTPUT_MODE`. |
 | `sf_dir` | `<repo>/sf` | Override via `MUSICGEN_SF_DIR` env var. |
+| `soundfont_manager_db` | `None` | Path to a SoundfontManager JSON database. Set to activate metadata-aware soundfont selection (Integration 1). Override via `MUSICGEN_SOUNDFONT_MANAGER_DB`. |
+| `soundfont_manager_sf_dir` | `None` | Base directory for `.sf2` files when the SM db stores relative paths. Override via `MUSICGEN_SOUNDFONT_MANAGER_SF_DIR`. |
 
 Other paths (FX JSONs, levels, song structures, chord patterns, beat-roll patterns) are also `Config` fields with sensible defaults — see `config.py`.
 
@@ -147,6 +174,141 @@ Other paths (FX JSONs, levels, song structures, chord patterns, beat-roll patter
 | `inst_probabilities.json` | Per-layer inclusion probabilities per part. |
 | `levels.json` | Per-layer gain + pan (linear amplitudes 0–1, converted to dB at apply time). |
 | `*_fx.json` | FX chain parameter ranges per layer (Compressor, Reverb, Delay, Chorus, Phaser, Filter, Gain). |
+
+## Optional integrations (v0.2)
+
+All three integrations are **opt-in** — zero new hard dependencies in `pyproject.toml`. Each external package is lazy-imported inside the function body; a clear `ImportError` with an install hint is raised if the package is absent.
+
+### Integration 1 — SoundfontManager-backed soundfont selection
+
+**Package:** [`dobidu/soundfont_manager`](https://github.com/dobidu/soundfont_manager)
+
+**Install:**
+```bash
+pip install git+https://github.com/dobidu/soundfont_manager
+```
+
+**Purpose:** Replace blind `rng.choice(os.listdir(...))` with metadata-aware, tag-based selection from a SoundfontManager JSON database. Enables curated timbre selection ("pick a pad soundfont for the harmony layer") while preserving the determinism contract.
+
+**Activation:** set `soundfont_manager_db` in `Config` (or env var `MUSICGEN_SOUNDFONT_MANAGER_DB`):
+
+```python
+from musicgen import generate, Config
+
+result = generate(Config(
+    global_seed=42,
+    sample_index=0,
+    dataset_root="./dataset",
+    soundfont_manager_db="/path/to/soundfonts.json",
+    soundfont_manager_sf_dir="/path/to/sf2/files",  # optional, for relative paths in db
+))
+```
+
+Or via environment:
+```bash
+export MUSICGEN_SOUNDFONT_MANAGER_DB=/path/to/soundfonts.json
+export MUSICGEN_SOUNDFONT_MANAGER_SF_DIR=/path/to/sf2/files
+musicgen generate --count 32 --seed 1 --out ./dataset
+```
+
+**Layer → tag mapping:**
+
+| Layer | Tags queried |
+|---|---|
+| `beat` | `["drums", "percussion"]` |
+| `melody` | `["melody", "lead", "piano", "strings"]` |
+| `harmony` | `["harmony", "chords", "pads", "pad"]` |
+| `bassline` | `["bass"]` |
+
+**Determinism:** Candidates are sorted by `sf.path` before `rng.choice()` — SM database insertion order has no effect on reproducibility.
+
+**Fallback:** `ImportError`, empty tag result for any layer, or any exception → falls back to `sorted(os.listdir(sf/<layer>/))` + `rng.choice()`. Fallback is logged.
+
+---
+
+### Integration 2 — MIDI indexing into midi_file_manager
+
+**Package:** [`dobidu/midi_file_manager`](https://github.com/dobidu/midi_file_manager)
+
+**Install:**
+```bash
+pip install git+https://github.com/dobidu/midi_file_manager
+```
+
+**Purpose:** Index all generated MIDI files into a `MidiManager` database with ground-truth musicgen metadata (`tempo_bpm`, `key`, `time_signature`, `split`, `musicality_score`). Enables downstream ML pipelines to query by musical parameters.
+
+**CLI:**
+```bash
+musicgen index-midi --dataset ./dataset --out ./midi_db.json
+musicgen index-midi --dataset ./dataset --out ./midi_db.json --csv ./midi_db.csv
+```
+
+**Library:**
+```python
+from musicgen.midi_indexer import index_midi_dataset
+
+count = index_midi_dataset(
+    dataset_root="./dataset",
+    out_db="./midi_db.json",
+    midi_dir=None,      # optional base dir for relative paths
+    export_csv=None,    # optional CSV export path
+)
+print(f"Indexed {count} MIDI files")
+```
+
+**What gets indexed:** `midi/<layer>.mid` for each of `beat`, `melody`, `harmony`, `bassline` across every complete sample directory. Ground-truth fields (`bpm`, `key`, `time_signature`) come from `sample.json` — no re-extraction. Category and tags per layer:
+
+| Layer | MidiCategory | Tags |
+|---|---|---|
+| `beat` | `"drums"` | `["musicgen", "beat", <split>]` |
+| `melody` | `"melody"` | `["musicgen", "melody", <split>]` |
+| `harmony` | `"harmony"` | `["musicgen", "harmony", <split>]` |
+| `bassline` | `"bass"` | `["musicgen", "bassline", <split>]` |
+
+---
+
+### Integration 3 — Audio indexing into audio_sample_manager
+
+**Package:** [`dobidu/audio_sample_manager`](https://github.com/dobidu/audio_sample_manager)
+
+**Install:**
+```bash
+pip install git+https://github.com/dobidu/audio_sample_manager
+```
+
+**Purpose:** Index generated WAV stems into a `SampleManager` database alongside external audio libraries (drum packs, synth loops, etc.). Enables unified cross-library queries — e.g., "all bass stems at 90 BPM in A minor" returns both musicgen-generated and externally-sourced samples.
+
+**CLI:**
+```bash
+musicgen index-audio --dataset ./dataset --out ./audio_db.json
+musicgen index-audio --dataset ./dataset --out ./audio_db.json --csv ./audio_db.csv
+```
+
+**Library:**
+```python
+from musicgen.audio_indexer import index_audio_dataset
+
+count = index_audio_dataset(
+    dataset_root="./dataset",
+    out_db="./audio_db.json",
+    samples_dir=None,   # optional base dir for relative paths
+    export_csv=None,    # optional CSV export path
+)
+print(f"Indexed {count} WAV stems")
+```
+
+**What gets indexed:** `stems/<layer>.wav` for each of `beat`, `melody`, `harmony`, `bassline` per complete sample. `mix.wav` is not indexed — `SampleCategory` has no `full_song` value; the mix is better represented by its constituent stems.
+
+Ground-truth fields (`bpm`, `key`, `time_signature`, `scale`) come from `sample.json`. Timbre/spectral features come from librosa analysis (not available in `sample.json`). `is_loop=False` — musicgen stems are full concatenated songs, not fixed-length loops.
+
+| Layer | SampleCategory | Tags |
+|---|---|---|
+| `beat` | `"beat"` | `["musicgen", "beat", <split>]` |
+| `melody` | `"melody"` | `["musicgen", "melody", <split>]` |
+| `harmony` | `"harmony"` | `["musicgen", "harmony", <split>]` |
+| `bassline` | `"bass"` | `["musicgen", "bassline", <split>]` |
+
+---
 
 ## Per-sample output layout
 
@@ -225,7 +387,7 @@ Zero bare `random.*` calls anywhere in `src/musicgen/` — enforced by an AST st
 ## Tests
 
 ```bash
-pytest -m "not slow"      # Fast suite (default CI) — 745 tests in ~5s
+pytest -m "not slow"      # Fast suite (default CI) — 794 tests in ~5s
 pytest -m slow            # Slow suite — requires FluidSynth + .sf2 pools
 pytest                    # Everything
 ```
@@ -243,6 +405,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 | 5 | Productize I — writer, manifest, seed discipline, determinism | ✓ COMPLETE | 6/6 |
 | 6 | Productize II — FluidSynth calibration, batch generation, CLI, resumability | ✓ COMPLETE | 6/6 |
 | 7 | Ship v0.1 — docs, polish, regression suite | ✓ COMPLETE | — |
+| v0.2 | Sibling ecosystem integrations (SoundfontManager, MIDI indexer, audio indexer) | ✓ COMPLETE | — |
 
 ### Phases delivered
 
@@ -254,6 +417,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 
 - **Phase 6 — Productize II.** `musicgen.generate_batch(config)` via `ProcessPoolExecutor`. FluidSynth pre-roll calibration (caches in `.musicgen/fluidsynth_preroll.json`, applied to beat-time annotations). Full `typer` CLI: `musicgen generate --count N --out DIR --seed S [--workers W] [--output-mode MODE]` and `musicgen clean --failed`. `--output-mode` flag (`full` / `mix-only` / `stems-only` / `midi-only`). Resumability via sentinel check. Failure isolation (one bad sample doesn't kill a 10k batch). Structured JSON progress events on stderr.
 - **Phase 7 — Ship v0.1.** README refresh, GitHub Actions CI (87% coverage, determinism regression), `v0.1.0` tag.
+- **v0.2 — Sibling ecosystem integrations.** Three opt-in integrations with zero new hard deps. (1) `soundfont_manager`: tag-based soundfont selection via `Config.soundfont_manager_db`; determinism preserved via `sf.path`-sorted candidates. (2) `midi_file_manager`: `musicgen index-midi` command indexes MIDI files into a `MidiManager` db with ground-truth enrichment. (3) `audio_sample_manager`: `musicgen index-audio` command indexes WAV stems into a `SampleManager` db for cross-library queries. All packages lazy-imported; `ImportError` falls back gracefully.
 
 ## Architecture (post-Phase 5)
 
@@ -262,7 +426,7 @@ src/musicgen/
 ├── __init__.py          # public exports: generate, generate_batch, Config, SampleResult, BatchResult, __version__
 ├── api.py               # generate(Config) — composition root
 ├── batch.py             # generate_batch(Config) → BatchResult via ProcessPoolExecutor
-├── cli.py               # typer app: generate / clean / calibrate commands
+├── cli.py               # typer app: generate / clean / calibrate / index-midi / index-audio
 ├── calibrate.py         # FluidSynth pre-roll offset measurement + .musicgen/ cache
 ├── config.py (root)     # Config dataclass with CLI > env > defaults precedence
 ├── seeds.py             # derive_sample_seed, make_rngs, save_random_state, assign_split
@@ -272,13 +436,15 @@ src/musicgen/
 │   ├── melody.py        # generate_melody (Markov-style over chord progressions)
 │   ├── bassline.py      # generate_bassline (keyed to chords + melody)
 │   └── beat.py          # generate_beat (drum patterns + swing offset)
-├── renderer.py          # FluidSynth wrapper, ThreadPoolExecutor stem rendering
+├── renderer.py          # FluidSynth wrapper, ThreadPoolExecutor stem rendering; SM-backed soundfont selection
 ├── mixer.py             # FX (pedalboard), pydub overlay, layer mask, part concat
 ├── beats.py             # MIDI-tick beat + downbeat extraction (mido), swing-aware
 ├── annotator.py         # pure-function R-P4 schema assembler
 ├── musicality.py        # MusicalityAnalyzer (tempo, harmony, rhythm, timbre, SNR)
 ├── writer.py            # atomic per-sample dir, sum-of-stems assertion, MIDI/stem concat, output_mode routing
 ├── manifest.py          # ManifestWriter (append-under-lock, JSONL)
+├── midi_indexer.py      # index_midi_dataset: indexes MIDI files into MidiManager db (opt-in v0.2)
+├── audio_indexer.py     # index_audio_dataset: indexes WAV stems into SampleManager db (opt-in v0.2)
 └── duration_validator.py
 ```
 
@@ -296,12 +462,12 @@ sampler → generators → renderer (FluidSynth, parallel stems)
 
 `generate_batch` wraps `generate` in a `ProcessPoolExecutor` (spawn context), emits JSON progress events on `stderr`, and returns `BatchResult`.
 
-## Out of scope for v0.1
+## Out of scope for v0.1 / v0.2
 
 Deferred milestones (per `.planning/REQUIREMENTS.md`):
 
-- **Extend (v0.2):** broader genres, richer chord vocab, additional time signatures, more drum patterns, broader soundfont pool.
-- **Research (v0.3):** smarter Markov, ML-assisted generators, regeneration loops.
+- **Extend (v0.3):** broader genres, richer chord vocab, additional time signatures, more drum patterns, broader soundfont pool.
+- **Research (v0.4):** smarter Markov, ML-assisted generators, regeneration loops.
 - License audit + CC0/MIT soundfont replacement (gated by external publication).
 - Sharded directory layout (`dataset/<hex>/<id>/`) — only needed past 100k samples; 6-digit indices cover 1M.
 - Cloud / distributed generation, web UI, HTTP API — explicit anti-features.
