@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,8 @@ DEFAULT_BEAT_ROLL_PATTERN_FILES: Dict[str, str] = {
     "7/8":  os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_78.txt"),
     "12/8": os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_128.txt"),
 }
+
+DEFAULT_GENRES_DIR = os.path.join(DEFAULT_PROJECT_ROOT, "genres")
 
 SOUNDFONT_POOL_WARN_THRESHOLD = 3  # D-09: warn when a layer has fewer than 3 .sf2 files
 
@@ -75,6 +77,10 @@ class Config:
     # --- soundfont_manager integration (opt-in, v0.2) ---
     soundfont_manager_db: Optional[str] = None      # path to SoundfontManager JSON db
     soundfont_manager_sf_dir: Optional[str] = None  # base dir for .sf2 files (sm sf2_directory)
+
+    # --- genre system (v0.2) ---
+    genre: Optional[List[str]] = None               # list of genre names to compose
+    genres_dir: str = DEFAULT_GENRES_DIR            # root dir for genre spec files
 
     _VALID_OUTPUT_MODES = frozenset({"full", "mix-only", "stems-only", "midi-only"})
 
@@ -142,6 +148,12 @@ class Config:
         sfm_sf_dir_env = os.environ.get("MUSICGEN_SOUNDFONT_MANAGER_SF_DIR")
         if sfm_sf_dir_env:
             cfg.soundfont_manager_sf_dir = os.path.abspath(sfm_sf_dir_env)
+        genre_env = os.environ.get("MUSICGEN_GENRE")
+        if genre_env:
+            cfg.genre = [g.strip() for g in genre_env.split(",") if g.strip()]
+        genres_dir_env = os.environ.get("MUSICGEN_GENRES_DIR")
+        if genres_dir_env:
+            cfg.genres_dir = os.path.abspath(genres_dir_env)
 
         # cli layer (D-02 top layer; framework-agnostic — avoids typer dep in Phase 2)
         if cli_overrides:
