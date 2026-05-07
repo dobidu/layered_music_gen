@@ -20,20 +20,30 @@ from typing import Dict, List, Optional, Tuple
 
 import config
 from timesig import TimeSignatureRegistry
+from musicgen.genre import GenreSpec
 
 logger = logging.getLogger(__name__)
 
 
-def generate_random_key(rng: random.Random) -> str:
+def generate_random_key(rng: random.Random, genre_spec: Optional[GenreSpec] = None) -> str:
     """Generate a weighted random musical key.
 
     One ``rng.random()`` draw, 24-branch threshold loop with explicit fallback.
+    When ``genre_spec.scale_weights`` is non-empty, uses weighted draw from
+    those keys instead (soft constraint — any key still reachable, but weights shift).
 
     Sources:
       * https://www.digitaltrends.com/music/whats-the-most-popular-music-key-spotify/
       * https://web.archive.org/web/20190426230344/https://insights.spotify.com/us/2015/05/06/most-popular-keys-on-spotify/
       * https://forum.bassbuzz.com/t/most-used-keys-on-spotify/5886
     """
+    if genre_spec is not None and genre_spec.scale_weights:
+        weights = genre_spec.scale_weights
+        candidates = [k for k, w in weights.items() if w > 0]
+        if candidates:
+            w_values = [weights[k] for k in candidates]
+            return rng.choices(candidates, weights=w_values, k=1)[0]
+
     key_ranges = [
         (0.107, 'G'), (0.209, 'C'), (0.296, 'D'), (0.357, 'A'), (0.417, 'C#'), (0.47, 'F'),
         (0.518, 'Am'), (0.561, 'G#'), (0.603, 'Em'), (0.645, 'Bm'), (0.681, 'E'), (0.716, 'A#'),
@@ -48,10 +58,11 @@ def generate_random_key(rng: random.Random) -> str:
     return key_ranges[-1][1]
 
 
-def generate_random_tempo(rng: random.Random) -> int:
+def generate_random_tempo(rng: random.Random, genre_spec: Optional[GenreSpec] = None) -> int:
     """Generate a weighted random tempo (BPM).
 
     Two draws always: ``rng.random()`` for bucket, ``rng.randint(min, max)`` inside.
+    When ``genre_spec`` is set, clamps the result to [tempo_min, tempo_max] (hard bounds).
 
     Source: https://blog.musiio.com/2021/08/19/which-musical-tempos-are-people-streaming-the-most/
     """
@@ -60,6 +71,11 @@ def generate_random_tempo(rng: random.Random) -> int:
         (0.4817, 100, 110), (0.5747, 110, 120), (0.7048, 120, 130), (0.7917, 130, 140),
         (0.8958, 140, 150), (0.9739, 150, 160), (1.0, 160, 170),
     ]
+    if genre_spec is not None:
+        tmin = int(genre_spec.tempo_min)
+        tmax = int(genre_spec.tempo_max)
+        return rng.randint(tmin, tmax)
+
     dice = rng.random()
     for prob, min_tempo, max_tempo in tempo_ranges:
         if dice < prob:
@@ -68,21 +84,32 @@ def generate_random_tempo(rng: random.Random) -> int:
     return rng.randint(*tempo_ranges[-1][1:])
 
 
-def generate_random_time_signature(rng: random.Random) -> str:
+def generate_random_time_signature(rng: random.Random, genre_spec: Optional[GenreSpec] = None) -> str:
     """Delegate to :meth:`TimeSignatureRegistry.sample_random` per R-S6 / D-09.
+
+    When ``genre_spec.time_sig_weights`` is non-empty, uses those weights for a
+    weighted draw instead of the registry's default distribution.
 
     Fixes Pitfall 5 in the pre-refactor code (missing return on threshold-loop
     fallthrough) because the registry implementation uses ``random.choices`` —
     see Plan 02-02 / A3 RNG-order commitment.
     """
+    if genre_spec is not None and genre_spec.time_sig_weights:
+        weights = genre_spec.time_sig_weights
+        candidates = [ts for ts, w in weights.items() if w > 0]
+        if candidates:
+            w_values = [weights[ts] for ts in candidates]
+            return rng.choices(candidates, weights=w_values, k=1)[0]
     return TimeSignatureRegistry.sample_random(rng)
 
 
-def generate_random_swing(rng: random.Random) -> float:
+def generate_random_swing(rng: random.Random, genre_spec: Optional[GenreSpec] = None) -> float:
     """Generate a weighted random swing value in ``[0.5, 0.75]``.
 
     Two draws always: ``rng.choices(...)`` for bucket + ``rng.uniform(-0.02, 0.02)``
     for variation. Favors musically appropriate values.
+
+    When ``genre_spec`` is set, clamps result to [swing_min, swing_max] (hard bounds).
 
       * ``0.5``  = no swing   (30%)
       * ``0.66`` = traditional jazz (50%)
@@ -100,7 +127,11 @@ def generate_random_swing(rng: random.Random) -> float:
     )[0]
 
     variation = rng.uniform(-0.02, 0.02)
-    return min(0.75, max(0.5, base_swing + variation))
+    raw = base_swing + variation
+
+    if genre_spec is not None:
+        return min(genre_spec.swing_max, max(genre_spec.swing_min, raw))
+    return min(0.75, max(0.5, raw))
 
 
 def time_signature_alternative(base_time_signature: str, rng: random.Random) -> str:
@@ -246,16 +277,17 @@ class SongParams:
         cfg: Optional[config.Config] = None,
         *,
         time_signature_variation: float = 1.0,
+        genre_spec: Optional[GenreSpec] = None,
     ) -> "SongParams":
         """Draw all song-level parameters in the canonical order (D-21).
 
         RNG draw order (must match ``music_gen.py`` ``generate_song`` verbatim —
         RESEARCH Risk #2):
 
-          1. :func:`generate_random_key` (rng)
-          2. :func:`generate_random_tempo` (rng)
-          3. :func:`generate_random_time_signature` (rng)
-          4. :func:`generate_random_swing` (rng)
+          1. :func:`generate_random_key` (rng, genre_spec)
+          2. :func:`generate_random_tempo` (rng, genre_spec)
+          3. :func:`generate_random_time_signature` (rng, genre_spec)
+          4. :func:`generate_random_swing` (rng, genre_spec)
           5. :func:`generate_song_arrangement` (rng, structures_file=cfg.song_structures_file)
           6. LOOP UNTIL :func:`validate_measures_dict`:
                  :func:`generate_song_measures` (ts_base, ts_var, rng)
@@ -265,12 +297,13 @@ class SongParams:
             cfg: Optional :class:`config.Config`; when None a default instance is built.
             time_signature_variation: Probability (0.0–1.0) that per-part time
                 signatures vary from the base. Keyword-only.
+            genre_spec: Optional merged :class:`GenreSpec` for genre constraints. Keyword-only.
         """
         _cfg = cfg if cfg is not None else config.Config()
-        key = generate_random_key(rng)
-        tempo = generate_random_tempo(rng)
-        time_sig_base = generate_random_time_signature(rng)
-        swing = generate_random_swing(rng)
+        key = generate_random_key(rng, genre_spec)
+        tempo = generate_random_tempo(rng, genre_spec)
+        time_sig_base = generate_random_time_signature(rng, genre_spec)
+        swing = generate_random_swing(rng, genre_spec)
         unique_parts, arrangement = generate_song_arrangement(
             rng, structures_file=_cfg.song_structures_file,
         )

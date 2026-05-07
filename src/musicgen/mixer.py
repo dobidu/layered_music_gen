@@ -42,6 +42,7 @@ from pedalboard.io import AudioFile
 from pydub import AudioSegment
 
 import config
+from musicgen.genre import GenreSpec
 from musicgen.renderer import RenderResult
 
 logger = logging.getLogger(__name__)
@@ -119,30 +120,44 @@ def _create_effect(effect_class, parameters: dict, rng: random.Random):
 
 # ---------- _generate_pedalboard (D-10/D-17) ----------
 
-def _generate_pedalboard(effect_params_file: str, rng: random.Random) -> Pedalboard:
+def _generate_pedalboard(
+    effect_params_file: str,
+    rng: random.Random,
+    fx_profile: Optional[Dict[str, float]] = None,
+) -> Pedalboard:
     """Construct a Pedalboard from the 7 effect specs in the FX JSON (D-10).
 
     Body from ``music_gen.py:141-160`` with injected ``rng`` threaded through
-    ``_create_effect``.
+    ``_create_effect``. When ``fx_profile`` is supplied, each named effect's
+    probability is multiplied by the matching profile weight (soft shift).
 
     Args:
         effect_params_file: Path to the FX JSON file (e.g., beat_fx.json).
         rng: Injected ``random.Random`` (D-17).
+        fx_profile: Optional dict mapping effect name → weight multiplier (genre FX).
 
     Returns:
         Pedalboard with 0-7 effects depending on probability rolls.
     """
     with open(effect_params_file, 'r') as json_file:
         effect_params = json.load(json_file)
-    effects = [
-        (Compressor, effect_params['compressor']),
-        (Gain, effect_params['gain']),
-        (Chorus, effect_params['chorus']),
-        (LadderFilter, effect_params['ladder_filter']),
-        (Phaser, effect_params['phaser']),
-        (Delay, effect_params['delay']),
-        (Reverb, effect_params['reverb']),
-    ]
+    _profile = fx_profile or {}
+    effect_key_map = {
+        "compressor":   Compressor,
+        "gain":         Gain,
+        "chorus":       Chorus,
+        "ladder_filter": LadderFilter,
+        "phaser":       Phaser,
+        "delay":        Delay,
+        "reverb":       Reverb,
+    }
+    effects = []
+    for key, effect_class in effect_key_map.items():
+        params = dict(effect_params[key])
+        if key in _profile:
+            params["probability"] = min(1.0, params["probability"] * _profile[key])
+        effects.append((effect_class, params))
+
     board = Pedalboard([
         effect
         for effect in (
@@ -159,6 +174,7 @@ def _generate_pedalboard(effect_params_file: str, rng: random.Random) -> Pedalbo
 def build_fx_boards(
     cfg: Optional[config.Config] = None,
     rng: Optional[random.Random] = None,
+    genre_spec: Optional[GenreSpec] = None,
 ) -> Dict[str, Pedalboard]:
     """Construct per-layer pedalboards (D-10/D-17).
 
@@ -167,9 +183,14 @@ def build_fx_boards(
     their random draws happen in a stable order (preserves Phase 5 seeded
     determinism baseline).
 
+    When ``genre_spec.fx_profile`` is non-empty, the effect probability for
+    each named effect is multiplied by the genre's profile weight (soft shift —
+    full range still accessible).
+
     Args:
         cfg: Optional Config (D-25 fallback to ``config.Config()`` if None).
         rng: Injected ``random.Random`` (required; D-17).
+        genre_spec: Optional merged :class:`GenreSpec` for FX profile shifts.
 
     Returns:
         Dict mapping layer name → Pedalboard.
@@ -180,7 +201,11 @@ def build_fx_boards(
     if rng is None:
         raise ValueError("build_fx_boards requires an injected rng (D-17)")
     _cfg = cfg if cfg is not None else config.Config()
-    return {layer: _generate_pedalboard(_cfg.fx_files[layer], rng) for layer in _LAYERS}
+    fx_profile = genre_spec.fx_profile if genre_spec is not None else {}
+    return {
+        layer: _generate_pedalboard(_cfg.fx_files[layer], rng, fx_profile=fx_profile)
+        for layer in _LAYERS
+    }
 
 
 # ---------- apply_fx_to_layer (D-10, lifts verbatim) ----------
