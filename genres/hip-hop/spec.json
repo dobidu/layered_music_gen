@@ -1,0 +1,38 @@
+{
+  "name": "hip-hop",
+  "description": "Hip-hop: heavy kick-snare, sample-based, 70-100 BPM, 4/4 dominant",
+  "tempo_min": 70,
+  "tempo_max": 110,
+  "swing_min": 0.50,
+  "swing_max": 0.65,
+  "time_sig_weights": {
+    "4/4": 0.92,
+    "3/4": 0.05,
+    "6/8": 0.03
+  },
+  "scale_weights": {
+    "Am": 0.15, "Dm": 0.12, "Gm": 0.1, "Cm": 0.1, "Fm": 0.08,
+    "C": 0.08, "G": 0.08, "A": 0.07, "F": 0.07, "D": 0.06,
+    "C#m": 0.04, "Em": 0.05
+  },
+  "chord_type_weights": {
+    "min": 0.35, "maj": 0.2, "m7": 0.2, "dom7": 0.1, "m7b5": 0.1, "dim7": 0.05
+  },
+  "inversion_weights": {
+    "root": 0.7, "first": 0.2, "second": 0.1
+  },
+  "layer_probs": {
+    "beat": 1.0, "melody": 0.7, "harmony": 0.75, "bassline": 0.95
+  },
+  "fx_profile": {
+    "compressor": 1.0, "reverb": 0.4, "chorus": 0.2, "delay": 0.3
+  },
+  "chord_type_hard_filter": null,
+  "soundfont_tags": {
+    "beat": ["hip_hop_drums", "drums", "percussion"],
+    "melody": ["melody", "lead", "piano"],
+    "harmony": ["pads", "pad", "harmony"],
+    "bassline": ["bass", "sub_bass"]
+  },
+  "drum_pool_names": ["hip_hop_808", "hip_hop_trap"]
+}

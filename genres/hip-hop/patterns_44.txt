@@ -1,0 +1,22 @@
+# Hip-hop 4/4 patterns (heavy kick-snare, 808 bass hits implied by kick)
+# Kick=36, Snare=38, HH-closed=42, Clap=39, Open HH=46
+intro: 36, 42, 38, 42
+intro: 36, 0, 38, 42
+intro: 36, 42, 38, 0
+verse: 36, 42, 38, 42
+verse: 36, 0, 38, 42
+verse: 36, 42, 38, 0
+verse: 36, 0, 38, 0
+verse: 36, 42, 0, 42
+chorus: 36, 39, 38, 42
+chorus: 36, 42, 38, 39
+chorus: 36, 0, 38, 0
+bridge: 36, 42, 38, 42
+bridge: 36, 0, 38, 0
+outro: 36, 42, 38, 42
+outro: 36, 0, 38, 0
+intro_roll: 36, 38, 42, 38
+verse_roll: 36, 42, 38, 42
+chorus_roll: 36, 39, 38, 39
+bridge_roll: 36, 0, 38, 42
+outro_roll: 36, 38, 42, 0

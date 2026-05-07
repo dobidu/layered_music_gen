@@ -1,0 +1,37 @@
+{
+  "name": "blues",
+  "description": "Blues: 12-bar progressions, dominant 7ths, shuffle feel, 60-130 BPM",
+  "tempo_min": 60,
+  "tempo_max": 130,
+  "swing_min": 0.55,
+  "swing_max": 0.70,
+  "time_sig_weights": {
+    "4/4": 0.7,
+    "12/8": 0.2,
+    "6/8": 0.1
+  },
+  "scale_weights": {
+    "A": 0.15, "E": 0.12, "G": 0.12, "C": 0.1, "D": 0.1, "B": 0.08,
+    "Am": 0.1, "Em": 0.08, "Bm": 0.06, "Dm": 0.05, "Gm": 0.04
+  },
+  "chord_type_weights": {
+    "dom7": 0.5, "maj": 0.2, "min": 0.15, "9": 0.1, "add9": 0.05
+  },
+  "inversion_weights": {
+    "root": 0.6, "first": 0.25, "second": 0.15
+  },
+  "layer_probs": {
+    "beat": 0.95, "melody": 0.9, "harmony": 0.9, "bassline": 0.95
+  },
+  "fx_profile": {
+    "reverb": 0.5, "chorus": 0.3, "delay": 0.4, "compressor": 0.7, "gain": 0.6
+  },
+  "chord_type_hard_filter": ["dom7", "maj", "min", "9", "add9"],
+  "soundfont_tags": {
+    "beat": ["drums", "percussion"],
+    "melody": ["blues_guitar", "guitar", "lead"],
+    "harmony": ["guitar", "harmony", "pads"],
+    "bassline": ["bass", "bass_guitar"]
+  },
+  "drum_pool_names": ["blues_shuffle"]
+}

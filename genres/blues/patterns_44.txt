@@ -1,0 +1,17 @@
+# Blues 4/4 patterns (shuffle feel)
+# Kick=36, Snare=38, HH=42, Ride=51, Crash=49
+intro: 36, 42, 38, 42
+intro: 36, 51, 38, 42
+verse: 36, 42, 38, 42
+verse: 36, 51, 38, 42
+verse: 36, 42, 38, 51
+chorus: 36, 51, 38, 51
+chorus: 36, 42, 38, 0
+bridge: 36, 42, 38, 42
+outro: 36, 51, 38, 42
+outro: 36, 42, 38, 51
+intro_roll: 36, 38, 42, 38
+verse_roll: 36, 51, 38, 42
+chorus_roll: 49, 38, 51, 38
+bridge_roll: 36, 42, 38, 51
+outro_roll: 36, 38, 51, 42

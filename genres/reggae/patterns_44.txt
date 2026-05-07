@@ -1,0 +1,17 @@
+# Reggae 4/4 patterns (one-drop feel: kick on beat 3, skank off-beats)
+# Kick=36, Snare=38, HH=42, Ride=51, Crash=49
+intro: 0, 42, 36, 42
+intro: 0, 42, 38, 42
+verse: 0, 42, 36, 42
+verse: 0, 42, 38, 42
+verse: 36, 0, 38, 42
+chorus: 0, 42, 36, 42
+chorus: 0, 42, 38, 42
+bridge: 0, 42, 36, 42
+outro: 0, 42, 38, 42
+outro: 36, 42, 0, 42
+intro_roll: 36, 38, 42, 38
+verse_roll: 0, 42, 38, 42
+chorus_roll: 49, 42, 38, 42
+bridge_roll: 0, 42, 36, 38
+outro_roll: 36, 42, 38, 0

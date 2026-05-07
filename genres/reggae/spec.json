@@ -1,0 +1,37 @@
+{
+  "name": "reggae",
+  "description": "Reggae: offbeat skank, heavy bass, 60-90 BPM, relaxed feel",
+  "tempo_min": 60,
+  "tempo_max": 90,
+  "swing_min": 0.50,
+  "swing_max": 0.58,
+  "time_sig_weights": {
+    "4/4": 0.9,
+    "6/8": 0.07,
+    "3/4": 0.03
+  },
+  "scale_weights": {
+    "A": 0.12, "D": 0.11, "G": 0.1, "C": 0.1, "E": 0.09, "F": 0.08,
+    "Am": 0.09, "Dm": 0.08, "Em": 0.07, "Gm": 0.06, "Bm": 0.05, "A#": 0.05
+  },
+  "chord_type_weights": {
+    "maj": 0.35, "min": 0.3, "dom7": 0.2, "maj7": 0.1, "9": 0.05
+  },
+  "inversion_weights": {
+    "root": 0.65, "first": 0.25, "second": 0.1
+  },
+  "layer_probs": {
+    "beat": 1.0, "melody": 0.7, "harmony": 0.9, "bassline": 1.0
+  },
+  "fx_profile": {
+    "reverb": 0.7, "delay": 0.6, "chorus": 0.3, "compressor": 0.6
+  },
+  "chord_type_hard_filter": null,
+  "soundfont_tags": {
+    "beat": ["drums", "percussion"],
+    "melody": ["melody", "piano", "lead"],
+    "harmony": ["guitar", "organ", "harmony"],
+    "bassline": ["bass", "bass_guitar"]
+  },
+  "drum_pool_names": ["reggae_one_drop", "reggae_steppers"]
+}

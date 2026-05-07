@@ -1,0 +1,38 @@
+{
+  "name": "latin",
+  "description": "Latin: clave-based rhythms, syncopation, 90-130 BPM, 4/4 and 3/4",
+  "tempo_min": 90,
+  "tempo_max": 140,
+  "swing_min": 0.50,
+  "swing_max": 0.60,
+  "time_sig_weights": {
+    "4/4": 0.6,
+    "3/4": 0.25,
+    "6/8": 0.15
+  },
+  "scale_weights": {
+    "Am": 0.12, "Dm": 0.1, "Gm": 0.09, "Cm": 0.09, "Em": 0.08,
+    "A": 0.1, "D": 0.09, "G": 0.08, "C": 0.08, "F": 0.07,
+    "Fm": 0.05, "A#": 0.05
+  },
+  "chord_type_weights": {
+    "maj": 0.25, "min": 0.25, "dom7": 0.2, "maj7": 0.1, "m7": 0.1, "9": 0.1
+  },
+  "inversion_weights": {
+    "root": 0.5, "first": 0.3, "second": 0.2
+  },
+  "layer_probs": {
+    "beat": 1.0, "melody": 0.85, "harmony": 0.9, "bassline": 1.0
+  },
+  "fx_profile": {
+    "reverb": 0.5, "chorus": 0.4, "compressor": 0.7, "delay": 0.3
+  },
+  "chord_type_hard_filter": null,
+  "soundfont_tags": {
+    "beat": ["latin_percussion", "congas", "percussion", "drums"],
+    "melody": ["trumpet", "piano", "melody", "lead"],
+    "harmony": ["guitar", "piano", "harmony"],
+    "bassline": ["bass", "bass_guitar"]
+  },
+  "drum_pool_names": ["latin_clave", "latin_bossa"]
+}

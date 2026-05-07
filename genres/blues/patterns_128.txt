@@ -1,0 +1,13 @@
+# Blues 12/8 shuffle patterns (6 beats, triplet feel)
+# Kick=36, Snare=38, HH=42, Ride=51
+intro: 36, 42, 0, 38, 42, 0
+verse: 36, 42, 0, 38, 42, 0
+verse: 36, 51, 0, 38, 42, 0
+chorus: 36, 42, 0, 38, 42, 42
+bridge: 36, 42, 0, 38, 42, 0
+outro: 36, 51, 0, 38, 51, 0
+intro_roll: 36, 38, 42, 38, 42, 38
+verse_roll: 36, 42, 38, 42, 38, 42
+chorus_roll: 36, 38, 42, 38, 42, 38
+bridge_roll: 36, 42, 38, 42, 38, 42
+outro_roll: 36, 51, 38, 42, 38, 51
