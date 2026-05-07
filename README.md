@@ -6,10 +6,10 @@ Suitable for training models that learn music tagging, source separation, beat/t
 
 ## Status
 
-- **Milestone v0.1 — complete.** All 7 phases shipped. Tag `v0.1.0`.
-- **v0.2 integrations — complete** (branch `feat/soundfont-manager`). Three opt-in sibling-ecosystem integrations: SoundfontManager-backed soundfont selection, MIDI indexing, and audio stem indexing. Zero new hard dependencies.
-- **What's in v0.1:** single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
-- **Test suite:** 794 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
+- **v0.2.0 — released.** Genre system complete: 8 built-in genres, `GenreSpec` composition engine, extended chord vocabulary, genre-constrained sampler/FX/soundfont selection, `list-genres` CLI, Jupyter demo notebook. Tag `v0.2.0`.
+- **v0.2 integrations — complete.** Three opt-in sibling-ecosystem integrations: SoundfontManager-backed soundfont selection, MIDI indexing, and audio stem indexing. Zero new hard dependencies.
+- **v0.1.0 — complete.** All 7 phases shipped: single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
+- **Test suite:** 1046 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
 
 ## Core value
 
@@ -441,7 +441,7 @@ Zero bare `random.*` calls anywhere in `src/musicgen/` — enforced by an AST st
 ## Tests
 
 ```bash
-pytest -m "not slow"      # Fast suite (default CI) — 794 tests in ~5s
+pytest -m "not slow"      # Fast suite (default CI) — 1046 tests in ~4s
 pytest -m slow            # Slow suite — requires FluidSynth + .sf2 pools
 pytest                    # Everything
 ```
@@ -459,7 +459,9 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 | 5 | Productize I — writer, manifest, seed discipline, determinism | ✓ COMPLETE | 6/6 |
 | 6 | Productize II — FluidSynth calibration, batch generation, CLI, resumability | ✓ COMPLETE | 6/6 |
 | 7 | Ship v0.1 — docs, polish, regression suite | ✓ COMPLETE | — |
-| v0.2 | Sibling ecosystem integrations (SoundfontManager, MIDI indexer, audio indexer) | ✓ COMPLETE | — |
+| v0.2-int | Sibling ecosystem integrations (SoundfontManager, MIDI indexer, audio indexer) | ✓ COMPLETE | — |
+| v0.2 | Genre system — GenreSpec engine, 8 built-in genres, chord vocab, CLI, notebook | ✓ COMPLETE | 8/8 |
+| v0.3 | Higher-order Markov — 2nd-order chords + melody, quality-gate regeneration | planned | — |
 
 ### Phases delivered
 
@@ -471,42 +473,46 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 
 - **Phase 6 — Productize II.** `musicgen.generate_batch(config)` via `ProcessPoolExecutor`. FluidSynth pre-roll calibration (caches in `.musicgen/fluidsynth_preroll.json`, applied to beat-time annotations). Full `typer` CLI: `musicgen generate --count N --out DIR --seed S [--workers W] [--output-mode MODE]` and `musicgen clean --failed`. `--output-mode` flag (`full` / `mix-only` / `stems-only` / `midi-only`). Resumability via sentinel check. Failure isolation (one bad sample doesn't kill a 10k batch). Structured JSON progress events on stderr.
 - **Phase 7 — Ship v0.1.** README refresh, GitHub Actions CI (87% coverage, determinism regression), `v0.1.0` tag.
-- **v0.2 — Sibling ecosystem integrations.** Three opt-in integrations with zero new hard deps. (1) `soundfont_manager`: tag-based soundfont selection via `Config.soundfont_manager_db`; determinism preserved via `sf.path`-sorted candidates. (2) `midi_file_manager`: `musicgen index-midi` command indexes MIDI files into a `MidiManager` db with ground-truth enrichment. (3) `audio_sample_manager`: `musicgen index-audio` command indexes WAV stems into a `SampleManager` db for cross-library queries. All packages lazy-imported; `ImportError` falls back gracefully.
+- **v0.2 integrations — Sibling ecosystem.** Three opt-in integrations with zero new hard deps. (1) `soundfont_manager`: tag-based soundfont selection via `Config.soundfont_manager_db`; determinism preserved via `sf.path`-sorted candidates. (2) `midi_file_manager`: `musicgen index-midi` command indexes MIDI files into a `MidiManager` db with ground-truth enrichment. (3) `audio_sample_manager`: `musicgen index-audio` command indexes WAV stems into a `SampleManager` db for cross-library queries. All packages lazy-imported; `ImportError` falls back gracefully.
+- **v0.2 — Genre system.** `GenreSpec` dataclass with hard bounds (tempo, swing), soft weight dicts (time-sig, scale, chord type, inversion, layer probs), FX profile multipliers, and per-layer soundfont tag overrides. `merge_genres` composition algebra (range intersection, weighted-average soft dicts, union of drum pools). 8 built-in genres (`jazz`, `hip-hop`, `blues`, `pop`, `electronic`, `latin`, `reggae`, `classical`), each with `spec.json` + time-sig drum pattern files. Extended chord vocabulary (maj7, m7, dom7, dim7, m7b5, sus2, sus4, add9, aug + all inversions). CLI: `--genre jazz`, `--genre jazz --genre latin`, `musicgen list-genres`. `notebooks/musicgen_demo.ipynb` 12-section demo notebook. Tag `v0.2.0`.
 
 ## Architecture (post-Phase 5)
 
 ```
 src/musicgen/
 ├── __init__.py          # public exports: generate, generate_batch, Config, SampleResult, BatchResult, __version__
-├── api.py               # generate(Config) — composition root
+├── api.py               # generate(Config) — composition root; resolve_genre_spec
 ├── batch.py             # generate_batch(Config) → BatchResult via ProcessPoolExecutor
-├── cli.py               # typer app: generate / clean / calibrate / index-midi / index-audio
+├── cli.py               # typer app: generate / clean / calibrate / index-midi / index-audio / list-genres
 ├── calibrate.py         # FluidSynth pre-roll offset measurement + .musicgen/ cache
 ├── config.py (root)     # Config dataclass with CLI > env > defaults precedence
 ├── seeds.py             # derive_sample_seed, make_rngs, save_random_state, assign_split
-├── sampler.py           # SongParams + key/tempo/time-sig/swing/measures/arrangement
+├── genre.py             # GenreSpec dataclass, load_genre, merge_genres, resolve_genres
+├── sampler.py           # SongParams + key/tempo/time-sig/swing/measures/arrangement; genre-constrained draws
 ├── generators/
-│   ├── chord.py         # generate_chord_progression
+│   ├── chord.py         # generate_chord_progression; extended types (maj7/m7/dom7/dim7/sus/add9/aug) + inversions
 │   ├── melody.py        # generate_melody (Markov-style over chord progressions)
 │   ├── bassline.py      # generate_bassline (keyed to chords + melody)
-│   └── beat.py          # generate_beat (drum patterns + swing offset)
-├── renderer.py          # FluidSynth wrapper, ThreadPoolExecutor stem rendering; SM-backed soundfont selection
-├── mixer.py             # FX (pedalboard), pydub overlay, layer mask, part concat
+│   └── beat.py          # generate_beat (drum patterns + swing offset); genre pattern union
+├── renderer.py          # FluidSynth wrapper, ThreadPoolExecutor stem rendering; genre + SM-backed soundfont selection
+├── mixer.py             # FX (pedalboard), pydub overlay, layer mask, part concat; genre FX profile
 ├── beats.py             # MIDI-tick beat + downbeat extraction (mido), swing-aware
 ├── annotator.py         # pure-function R-P4 schema assembler
 ├── musicality.py        # MusicalityAnalyzer (tempo, harmony, rhythm, timbre, SNR)
 ├── writer.py            # atomic per-sample dir, sum-of-stems assertion, MIDI/stem concat, output_mode routing
 ├── manifest.py          # ManifestWriter (append-under-lock, JSONL)
-├── midi_indexer.py      # index_midi_dataset: indexes MIDI files into MidiManager db (opt-in v0.2)
-├── audio_indexer.py     # index_audio_dataset: indexes WAV stems into SampleManager db (opt-in v0.2)
+├── midi_indexer.py      # index_midi_dataset: indexes MIDI files into MidiManager db (opt-in)
+├── audio_indexer.py     # index_audio_dataset: indexes WAV stems into SampleManager db (opt-in)
 └── duration_validator.py
 ```
 
 Pipeline flow inside `generate(config)`:
 
 ```
-sampler → generators → renderer (FluidSynth, parallel stems)
-       → mixer (FX + overlay + concat)
+resolve_genre_spec → sampler (genre-constrained draws)
+       → generators (chord/melody/bassline/beat, genre pattern pool)
+       → renderer (FluidSynth, parallel stems, genre soundfont tags)
+       → mixer (FX + overlay + concat, genre FX profile)
        → beats (MIDI-tick extraction)
        → annotator (R-P4 dict + pre-roll offset)
        → writer (atomic sample dir + sum-of-stems + output_mode routing)
@@ -516,15 +522,13 @@ sampler → generators → renderer (FluidSynth, parallel stems)
 
 `generate_batch` wraps `generate` in a `ProcessPoolExecutor` (spawn context), emits JSON progress events on `stderr`, and returns `BatchResult`.
 
-## Out of scope for v0.1 / v0.2
+## Roadmap — upcoming
 
-Deferred milestones (per `.planning/REQUIREMENTS.md`):
+- **v0.3 — Higher-order Markov** (`feat/higher-order-markov`): 2nd-order chord transition matrices per genre (`chord_transitions.json`), configurable-order melody Markov over scale-relative intervals, quality-gate regeneration loops (`Config.min_musicality_score`). Matrices are genre-specific — depends on v0.2 genre system.
+- **v0.4 — ML-assisted generators:** ML-guided chord/melody generation trained on real MIDI corpora, model-guided regeneration.
+- **Public release:** soundfont license audit + CC0/MIT replacement, HuggingFace Datasets / WebDataset exporters, sharded directory layout for 100k+ samples.
 
-- **Extend (v0.3):** broader genres, richer chord vocab, additional time signatures, more drum patterns, broader soundfont pool.
-- **Research (v0.4):** smarter Markov, ML-assisted generators, regeneration loops.
-- License audit + CC0/MIT soundfont replacement (gated by external publication).
-- Sharded directory layout (`dataset/<hex>/<id>/`) — only needed past 100k samples; 6-digit indices cover 1M.
-- Cloud / distributed generation, web UI, HTTP API — explicit anti-features.
+Not planned: cloud / distributed generation, web UI, HTTP API.
 
 ## Contributing
 
