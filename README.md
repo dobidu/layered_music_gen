@@ -70,6 +70,15 @@ musicgen generate --count 32 --seed 1 --out ./dataset --workers 4
 # Mix-only mode (no stems or MIDI written)
 musicgen generate --count 32 --seed 1 --out ./dataset --output-mode mix-only
 
+# Generate with a genre constraint
+musicgen generate --count 8 --seed 1 --genre jazz
+
+# Compose two genres (parameters merged)
+musicgen generate --count 8 --seed 1 --genre jazz --genre latin
+
+# List available genre presets
+musicgen list-genres
+
 # Clean up failed partial sample directories
 musicgen clean --failed --out ./dataset
 
@@ -161,6 +170,8 @@ python music_gen.py
 | `sf_dir` | `<repo>/sf` | Override via `MUSICGEN_SF_DIR` env var. |
 | `soundfont_manager_db` | `None` | Path to a SoundfontManager JSON database. Set to activate metadata-aware soundfont selection (Integration 1). Override via `MUSICGEN_SOUNDFONT_MANAGER_DB`. |
 | `soundfont_manager_sf_dir` | `None` | Base directory for `.sf2` files when the SM db stores relative paths. Override via `MUSICGEN_SOUNDFONT_MANAGER_SF_DIR`. |
+| `genre` | `None` | List of genre names to constrain generation. Override via `MUSICGEN_GENRE` (comma-separated). |
+| `genres_dir` | `<repo>/genres` | Root directory for genre spec files. Override via `MUSICGEN_GENRES_DIR`. |
 
 Other paths (FX JSONs, levels, song structures, chord patterns, beat-roll patterns) are also `Config` fields with sensible defaults — see `config.py`.
 
@@ -174,6 +185,49 @@ Other paths (FX JSONs, levels, song structures, chord patterns, beat-roll patter
 | `inst_probabilities.json` | Per-layer inclusion probabilities per part. |
 | `levels.json` | Per-layer gain + pan (linear amplitudes 0–1, converted to dB at apply time). |
 | `*_fx.json` | FX chain parameter ranges per layer (Compressor, Reverb, Delay, Chorus, Phaser, Filter, Gain). |
+
+## Genre system (v0.2)
+
+musicgen ships 8 built-in genre presets that constrain generation parameters to produce stylistically coherent samples. Genres are composable — specify multiple to merge their constraints.
+
+### Built-in genres
+
+| Genre | Tempo | Swing | Time sigs | Style |
+|---|---|---|---|---|
+| `jazz` | 80–200 BPM | 0.60–0.75 | 4/4, 3/4, 6/8, 12/8 | Swing-heavy, ride patterns, maj7/m7 chords |
+| `hip-hop` | 70–110 BPM | 0.50–0.65 | 4/4 dominant | Heavy kick-snare, compressed, minor-key bias |
+| `blues` | 60–130 BPM | 0.55–0.70 | 4/4, 12/8 | Dominant 7ths, shuffle feel, guitar timbre |
+| `pop` | 90–140 BPM | 0.50–0.55 | 4/4 dominant | Clean patterns, major-key bias, snare 2 & 4 |
+| `electronic` | 110–160 BPM | 0.50–0.55 | 4/4 dominant | Four-on-floor, synth layers, heavy FX |
+| `latin` | 90–140 BPM | 0.50–0.60 | 4/4, 3/4, 6/8 | Clave syncopation, percussion tags |
+| `reggae` | 60–90 BPM | 0.50–0.58 | 4/4 dominant | One-drop (kick on beat 3), bass-heavy |
+| `classical` | 50–160 BPM | 0.50–0.52 | 4/4, 3/4, 2/4, 6/8 | Wide dynamics, orchestral timbres |
+
+### Usage
+
+```bash
+# Single genre
+musicgen generate --seed 42 --genre jazz
+
+# Genre composition (constraints merged)
+musicgen generate --seed 42 --genre jazz --genre latin
+
+# List all genres with descriptions
+musicgen list-genres
+```
+
+### How genres constrain generation
+
+- **Tempo** — hard bounds: drawn tempo is clamped to `[tempo_min, tempo_max]`
+- **Swing** — hard bounds: drawn swing clamped to `[swing_min, swing_max]`
+- **Time signature** — soft weights: `time_sig_weights` shifts registry draw probabilities
+- **Key/scale** — soft weights: `scale_weights` shifts key selection probabilities
+- **Chord type + inversions** — soft weights + optional hard filter via `chord_type_weights`, `inversion_weights`, `chord_type_hard_filter`
+- **Drum patterns** — unioned from all active genre `patterns_*.txt` files + `genres/default/`
+- **FX profile** — `fx_profile` multiplies effect probabilities (soft shift, full range still accessible)
+- **Soundfonts** — `soundfont_tags` per layer replaces static tags when SoundfontManager is active
+
+See [`genres/README.md`](genres/README.md) for the full `spec.json` format and instructions for writing custom genres.
 
 ## Optional integrations (v0.2)
 

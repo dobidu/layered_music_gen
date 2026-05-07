@@ -73,8 +73,7 @@ class TestGenerateGenreFlag:
         """--genre jazz sets Config.genre = ['jazz']."""
         captured = {}
 
-        import musicgen.batch as _batch_mod
-        orig_batch = _batch_mod.generate_batch
+        import musicgen.cli as _cli_mod
 
         def fake_batch(cfg):
             captured["genre"] = cfg.genre
@@ -83,7 +82,7 @@ class TestGenerateGenreFlag:
                 succeeded = 0; failed = 0; skipped = 0; total = 0; duration_seconds = 0.0
             return R()
 
-        monkeypatch.setattr(_batch_mod, "generate_batch", fake_batch)
+        monkeypatch.setattr(_cli_mod, "generate_batch", fake_batch)
         runner.invoke(app, [
             "generate", "--seed", "1", "--out", str(tmp_path), "--genre", "jazz",
         ])
@@ -93,7 +92,7 @@ class TestGenerateGenreFlag:
         """--genre jazz --genre latin sets Config.genre = ['jazz', 'latin']."""
         captured = {}
 
-        import musicgen.batch as _batch_mod
+        import musicgen.cli as _cli_mod
 
         def fake_batch(cfg):
             captured["genre"] = cfg.genre
@@ -101,7 +100,7 @@ class TestGenerateGenreFlag:
                 succeeded = 0; failed = 0; skipped = 0; total = 0; duration_seconds = 0.0
             return R()
 
-        monkeypatch.setattr(_batch_mod, "generate_batch", fake_batch)
+        monkeypatch.setattr(_cli_mod, "generate_batch", fake_batch)
         runner.invoke(app, [
             "generate", "--seed", "1", "--out", str(tmp_path),
             "--genre", "jazz", "--genre", "latin",

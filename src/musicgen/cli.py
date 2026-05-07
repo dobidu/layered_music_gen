@@ -26,6 +26,7 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 import typer
+from typing import List
 
 from musicgen.api import Config
 from musicgen import calibrate
@@ -71,6 +72,8 @@ def generate(
     out: str = typer.Option("./dataset", "--out", "-o", help="Dataset output directory."),
     workers: Optional[int] = typer.Option(None, "--workers", "-w", help="Parallel workers (default: os.cpu_count())."),
     output_mode: str = typer.Option("full", "--output-mode", "-m", help="full | mix-only | stems-only | midi-only."),
+    genre: Optional[List[str]] = typer.Option(None, "--genre", "-g", help="Genre name(s) to constrain generation (repeatable: --genre jazz --genre latin)."),
+    genres_dir: Optional[str] = typer.Option(None, "--genres-dir", help="Custom genres directory (default: <repo>/genres/)."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
 ) -> None:
@@ -85,13 +88,19 @@ def generate(
         )
         raise typer.Exit(code=1)
 
-    cfg = Config.load(cli_overrides={
+    overrides: dict = {
         "global_seed": seed,
         "count": count,
         "dataset_root": os.path.abspath(out),
         "workers": workers,
         "output_mode": output_mode,
-    })
+    }
+    if genre:
+        overrides["genre"] = list(genre)
+    if genres_dir:
+        overrides["genres_dir"] = os.path.abspath(genres_dir)
+
+    cfg = Config.load(cli_overrides=overrides)
 
     result = generate_batch(cfg)
 
@@ -108,6 +117,38 @@ def generate(
             err=True,
         )
         raise typer.Exit(code=1)
+
+
+@app.command(name="list-genres")
+def list_genres(
+    genres_dir: Optional[str] = typer.Option(None, "--genres-dir", help="Genres directory (default: <repo>/genres/)."),
+) -> None:
+    """List all available genre presets with descriptions."""
+    import config as cfg_module
+    from musicgen.genre import load_genre
+
+    _genres_dir = os.path.abspath(genres_dir) if genres_dir else cfg_module.DEFAULT_GENRES_DIR
+    if not os.path.isdir(_genres_dir):
+        typer.echo(f"Error: genres directory not found: {_genres_dir}", err=True)
+        raise typer.Exit(code=1)
+
+    genre_names = sorted(
+        name for name in os.listdir(_genres_dir)
+        if os.path.isdir(os.path.join(_genres_dir, name))
+        and os.path.isfile(os.path.join(_genres_dir, name, "spec.json"))
+    )
+    if not genre_names:
+        typer.echo(f"No genres found in {_genres_dir}")
+        return
+
+    typer.echo(f"Available genres ({len(genre_names)}):\n")
+    for name in genre_names:
+        try:
+            spec = load_genre(name, _genres_dir)
+            desc = spec.description or "(no description)"
+        except Exception:
+            desc = "(error loading spec)"
+        typer.echo(f"  {name:<16} {desc}")
 
 
 @app.command()
