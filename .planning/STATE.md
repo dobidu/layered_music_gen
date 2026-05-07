@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v0.2
 milestone_name: Extend — Genre System
-status: PLANNING — v0.1.0 tagged 2026-04-28; v0.2 ecosystem integrations complete 2026-04-29; v0.2 genre system planned 2026-05-06
-last_updated: "2026-05-06T00:00:00Z"
+status: IN PROGRESS — v0.2 genre system 8/8 phases COMPLETE (2026-05-07)
+last_updated: "2026-05-07T00:00:00Z"
 progress:
-  total_phases: 7
-  completed_phases: 7
+  total_phases: 8
+  completed_phases: 8
   total_plans: 31
   completed_plans: 31
   percent: 100
@@ -97,15 +97,17 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 ## Next steps
 
-**v0.2 genre system planned** — branch `feat/genre-system`. 8 phases:
-1. GenreSpec + composition engine (`genre.py`, merge algebra)
-2. Chord vocabulary expansion (7th/9th/sus/dim7/maj7/m7b5 + inversions, genre-constrained)
-3. Drum pattern reorganization (`genres/<name>/patterns_<sig>.txt`, loader union)
-4. Sampler + FX genre integration (tempo/swing hard bounds, scale/time-sig soft weights)
-5. Soundfont genre integration (genre tags replace static `_LAYER_TAGS`)
-6. Built-in genre presets (jazz, hip-hop, blues, pop, electronic, latin, reggae, classical)
-7. Docs + CLI (`--genre jazz latin`, `--list-genres`, genres/README.md)
-8. Jupyter notebook (`notebooks/musicgen_demo.ipynb`, 12 sections)
+**v0.2 genre system COMPLETE** (branch `feat/genre-system`, 2026-05-07):
+1. ✓ GenreSpec + composition engine (`genre.py`, merge algebra)
+2. ✓ Chord vocabulary expansion (7th/9th/sus/dim7/maj7/m7b5 + inversions, genre-constrained)
+3. ✓ Drum pattern reorganization (`genres/<name>/patterns_<sig>.txt`, loader union)
+4. ✓ Sampler + FX genre integration (tempo/swing hard bounds, scale/time-sig soft weights)
+5. ✓ Soundfont genre integration (genre tags replace static `_LAYER_TAGS`)
+6. ✓ Built-in genre presets (jazz, hip-hop, blues, pop, electronic, latin, reggae, classical)
+7. ✓ Docs + CLI (`--genre jazz`, `--list-genres`, genres/README.md, README Genre system section)
+8. ✓ Jupyter notebook (`notebooks/musicgen_demo.ipynb`, 12 sections)
+
+**Next:** Create PR `feat/genre-system` → `main` for v0.2 release. 1047 fast tests passing.
 
 **v0.3 planned** — higher-order Markov (chord 2nd-order, melody 2nd-order, regeneration quality gate). Branch `feat/higher-order-markov`.
 
@@ -132,4 +134,4 @@ Optional post-release:
 - **2026-04-20 (Plan 05-06):** Wave 4 final Phase 5 plan landed via sequential executor in one atomic commit (`04570b5`). `tests/test_determinism_golden.py` Wave 0 stub (15 lines) replaced with 268-line real body: TestDeterminismGoldens (@pytest.mark.slow + class-level skipif-no-fluidsynth + class-level skipif-no-sf2) parametrized over 6 artifacts (mix, 4 MIDIs, sample.json); --regen-goldens capture mode writes expected_*.sha256 + fluidsynth_version.txt per D-32; mix.wav case xfails on FluidSynth version mismatch via _fluidsynth_version_matches_golden() (R-P8 pinned-binary contract); MIDI + sample.json hashes assert unconditionally; pytest.skip fallback on missing golden fixture (self-documenting first-time setup). TestSameProcessStability (fast, no FluidSynth, D-30) monkeypatches `musicgen.api.renderer.render_stems` + `musicgen.api.renderer.pick_soundfonts` + `musicgen.api.musicality.get_musicality_score` with deterministic stubs that preserve RNG draw count parity (rng.choice per layer in pick_soundfonts stub); runs generate() twice in-process with distinct dataset_roots; hashes sample.json bytes; asserts byte-identity. fixtures README refined from 19-line skeleton to 44-line maintainer playbook (7-file layout table, pip-install-e prereq per RESEARCH Pitfall 4, three-branch interpretation guide). One deviation: Rule 3 blocking fix — added _fake_pick_soundfonts stub beyond plan's verbatim spec because pick_soundfonts is called BEFORE render_stems in api._run_pipeline and raises FileNotFoundError when sf/<layer>/ dirs are empty (dev-machine default); plan missed this. Dev-machine profile locked: 6 slow cases SKIP cleanly (no FluidSynth on this host); TestSameProcessStability PASSES in ~1.4s. Full suite: 689 → 690 passed (+1 net from D-30), 0 failed, 12 deselected under `-m "not slow"` (6 prior slow + 6 new parametrized goldens); --regen-goldens flag still advertised via `.venv/bin/pytest --help | grep regen-goldens`. R-P8 + R-Q3 CLOSED. Phase 5 architecturally complete: 25/25 plans landed. Post-phase operator task (out of scope): capture actual golden hashes via `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on a pinned-FluidSynth host + commit the 7 fixture files. Until then, slow cases skip with instructional message; CI green is preserved without pinning CI's FluidSynth version as a Phase 5 requirement.
 
 ---
-*Last updated: 2026-04-29 after v0.2 integration work. v0.1 (7 phases, 31 plans) + v0.2 (3 integrations: SoundfontManager, MIDI indexer, audio indexer) COMPLETE. 794 fast tests. Branch feat/soundfont-manager. Next: PR for feat/soundfont-manager → release/v0.1.0, then v0.3 planning.*
+*Last updated: 2026-05-07 — v0.2 genre system all 8 phases COMPLETE. 1047 fast tests. Branch feat/genre-system. Next: PR feat/genre-system → main for v0.2 release, then v0.3 Markov planning.*
