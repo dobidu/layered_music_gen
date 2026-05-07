@@ -1,0 +1,21 @@
+# Jazz 4/4 drum patterns (swing feel, ride-dominant)
+# Kick=36, Snare=38, HH-closed=42, HH-open=46, Ride=51, Crash=49
+intro: 36, 51, 0, 51
+intro: 36, 51, 38, 51
+intro: 0, 51, 38, 51
+verse: 36, 51, 38, 51
+verse: 36, 51, 0, 51
+verse: 0, 51, 38, 51
+verse: 36, 51, 38, 0
+chorus: 36, 51, 38, 51
+chorus: 36, 49, 38, 51
+chorus: 36, 51, 38, 49
+bridge: 36, 51, 0, 51
+bridge: 0, 51, 38, 51
+outro: 36, 51, 38, 51
+outro: 36, 51, 0, 51
+intro_roll: 36, 38, 51, 42
+verse_roll: 36, 38, 51, 38
+chorus_roll: 49, 38, 51, 38
+bridge_roll: 36, 51, 38, 42
+outro_roll: 36, 38, 0, 51

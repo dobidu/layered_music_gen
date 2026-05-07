@@ -1,0 +1,38 @@
+{
+  "name": "electronic",
+  "description": "Electronic: synthesized sounds, 4-on-floor kick, 120-150 BPM",
+  "tempo_min": 110,
+  "tempo_max": 160,
+  "swing_min": 0.50,
+  "swing_max": 0.55,
+  "time_sig_weights": {
+    "4/4": 0.95,
+    "3/4": 0.03,
+    "5/4": 0.02
+  },
+  "scale_weights": {
+    "Am": 0.12, "Dm": 0.11, "Cm": 0.1, "Em": 0.1, "Gm": 0.09,
+    "A": 0.08, "D": 0.08, "G": 0.07, "C": 0.07, "F#m": 0.06,
+    "C#m": 0.06, "Fm": 0.06
+  },
+  "chord_type_weights": {
+    "min": 0.3, "maj": 0.2, "m7": 0.2, "sus4": 0.1, "sus2": 0.1, "add9": 0.1
+  },
+  "inversion_weights": {
+    "root": 0.75, "first": 0.15, "second": 0.1
+  },
+  "layer_probs": {
+    "beat": 1.0, "melody": 0.8, "harmony": 0.85, "bassline": 1.0
+  },
+  "fx_profile": {
+    "compressor": 1.0, "reverb": 0.6, "chorus": 0.5, "phaser": 0.6, "delay": 0.5, "ladder_filter": 0.7
+  },
+  "chord_type_hard_filter": null,
+  "soundfont_tags": {
+    "beat": ["electronic_drums", "drum_machine", "drums"],
+    "melody": ["synth_lead", "lead", "melody"],
+    "harmony": ["synth_pad", "pads", "pad"],
+    "bassline": ["synth_bass", "bass", "sub_bass"]
+  },
+  "drum_pool_names": ["electronic_4fl", "electronic_trap"]
+}

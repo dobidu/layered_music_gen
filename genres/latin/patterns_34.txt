@@ -1,0 +1,12 @@
+# Latin 3/4 (waltz/bolero feel)
+intro: 36, 42, 42
+verse: 36, 0, 42
+verse: 36, 42, 38
+chorus: 36, 42, 38
+bridge: 36, 42, 0
+outro: 36, 42, 42
+intro_roll: 36, 38, 42
+verse_roll: 36, 42, 38
+chorus_roll: 49, 38, 42
+bridge_roll: 36, 42, 38
+outro_roll: 36, 0, 42

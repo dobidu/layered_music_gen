@@ -1,0 +1,20 @@
+# Pop 4/4 patterns (clean, four-on-floor, snare on 2&4)
+# Kick=36, Snare=38, HH-closed=42, HH-open=46, Clap=39, Crash=49
+intro: 36, 42, 38, 42
+intro: 36, 42, 0, 42
+verse: 36, 42, 38, 42
+verse: 36, 0, 38, 42
+verse: 36, 42, 38, 0
+verse: 36, 42, 38, 39
+chorus: 36, 42, 38, 42
+chorus: 36, 39, 38, 42
+chorus: 36, 42, 38, 39
+bridge: 36, 42, 38, 42
+bridge: 36, 0, 38, 0
+outro: 36, 42, 38, 42
+outro: 36, 42, 0, 42
+intro_roll: 49, 38, 42, 38
+verse_roll: 36, 42, 38, 42
+chorus_roll: 49, 39, 38, 42
+bridge_roll: 36, 42, 38, 46
+outro_roll: 36, 42, 38, 39

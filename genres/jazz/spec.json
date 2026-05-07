@@ -1,0 +1,40 @@
+{
+  "name": "jazz",
+  "description": "Jazz: swing-heavy, syncopated rhythms, rich chord voicings, 3/4 and 4/4",
+  "tempo_min": 80,
+  "tempo_max": 200,
+  "swing_min": 0.60,
+  "swing_max": 0.75,
+  "time_sig_weights": {
+    "4/4": 0.5,
+    "3/4": 0.3,
+    "6/8": 0.1,
+    "12/8": 0.1
+  },
+  "scale_weights": {
+    "C": 0.07, "G": 0.07, "D": 0.07, "A": 0.07, "F": 0.07,
+    "Am": 0.1, "Em": 0.1, "Bm": 0.08, "Dm": 0.1, "Gm": 0.07,
+    "C#": 0.04, "Cm": 0.08, "Fm": 0.04, "A#": 0.04
+  },
+  "chord_type_weights": {
+    "maj7": 0.2, "m7": 0.2, "dom7": 0.2, "m7b5": 0.1,
+    "maj9": 0.1, "m9": 0.1, "dim7": 0.05, "add9": 0.05
+  },
+  "inversion_weights": {
+    "root": 0.4, "first": 0.3, "second": 0.2, "third": 0.1
+  },
+  "layer_probs": {
+    "beat": 0.9, "melody": 0.9, "harmony": 0.95, "bassline": 0.9
+  },
+  "fx_profile": {
+    "reverb": 0.7, "chorus": 0.4, "delay": 0.3, "compressor": 0.8
+  },
+  "chord_type_hard_filter": ["maj7", "m7", "dom7", "m7b5", "maj9", "m9", "dim7", "add9"],
+  "soundfont_tags": {
+    "beat": ["jazz_drums", "brushes", "drums"],
+    "melody": ["jazz_piano", "piano", "melody"],
+    "harmony": ["jazz_guitar", "guitar", "harmony"],
+    "bassline": ["jazz_bass", "upright_bass", "bass"]
+  },
+  "drum_pool_names": ["jazz_brush", "jazz_stick"]
+}

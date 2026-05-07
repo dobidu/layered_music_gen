@@ -34,6 +34,7 @@ from typing import Dict, List, Tuple
 from config import Config  # Re-exported from musicgen.__init__
 
 from musicgen import annotator, beats, mixer, musicality, renderer, writer
+from musicgen.genre import GenreSpec, resolve_genres
 from musicgen.generators.bassline import generate_bassline
 from musicgen.generators.beat import generate_beat
 from musicgen.generators.chord import generate_chord_progression
@@ -64,6 +65,18 @@ from musicgen.seeds import (
 logger = logging.getLogger(__name__)
 
 _LAYERS = ("beat", "melody", "harmony", "bassline")
+
+
+def resolve_genre_spec(cfg: Config) -> Optional[GenreSpec]:
+    """Return merged GenreSpec from cfg.genre, or None if no genre is configured.
+
+    Calls :func:`musicgen.genre.resolve_genres` with cfg.genre list and
+    cfg.genres_dir. Returns None when cfg.genre is None or empty so callers
+    can use `genre_spec=None` for the no-genre code path.
+    """
+    if not cfg.genre:
+        return None
+    return resolve_genres(cfg.genre, cfg.genres_dir)
 
 # D-22 / RESEARCH Pitfall 4: resolve once at import, fall back when uninstalled.
 try:

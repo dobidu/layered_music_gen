@@ -1,0 +1,19 @@
+# Electronic 4/4 patterns (four-on-floor, synth drums)
+# Kick=36, Snare=38, HH-closed=42, HH-open=46, Clap=39, Crash=49
+intro: 36, 42, 0, 42
+intro: 36, 0, 0, 42
+verse: 36, 42, 38, 42
+verse: 36, 42, 0, 42
+verse: 36, 0, 38, 42
+chorus: 36, 42, 38, 42
+chorus: 36, 39, 38, 42
+chorus: 36, 42, 38, 39
+bridge: 36, 42, 38, 42
+bridge: 36, 0, 0, 42
+outro: 36, 42, 0, 42
+outro: 36, 42, 38, 42
+intro_roll: 36, 42, 38, 42
+verse_roll: 36, 42, 38, 46
+chorus_roll: 49, 39, 38, 42
+bridge_roll: 36, 42, 38, 42
+outro_roll: 36, 42, 38, 39

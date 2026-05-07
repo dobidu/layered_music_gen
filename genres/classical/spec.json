@@ -1,0 +1,40 @@
+{
+  "name": "classical",
+  "description": "Classical: dynamic range, diverse time signatures, 50-160 BPM, triads and 7ths",
+  "tempo_min": 50,
+  "tempo_max": 160,
+  "swing_min": 0.50,
+  "swing_max": 0.52,
+  "time_sig_weights": {
+    "4/4": 0.4,
+    "3/4": 0.3,
+    "2/4": 0.1,
+    "6/8": 0.1,
+    "12/8": 0.05,
+    "5/4": 0.05
+  },
+  "scale_weights": {
+    "C": 0.1, "G": 0.1, "D": 0.1, "A": 0.09, "F": 0.09, "E": 0.08, "B": 0.07,
+    "Am": 0.08, "Em": 0.07, "Dm": 0.07, "Bm": 0.05, "Cm": 0.05, "Gm": 0.05
+  },
+  "chord_type_weights": {
+    "maj": 0.35, "min": 0.3, "maj7": 0.1, "m7": 0.1, "dim7": 0.08, "m7b5": 0.07
+  },
+  "inversion_weights": {
+    "root": 0.45, "first": 0.3, "second": 0.2, "third": 0.05
+  },
+  "layer_probs": {
+    "beat": 0.5, "melody": 1.0, "harmony": 1.0, "bassline": 0.9
+  },
+  "fx_profile": {
+    "reverb": 0.8, "chorus": 0.2, "compressor": 0.4, "delay": 0.1
+  },
+  "chord_type_hard_filter": null,
+  "soundfont_tags": {
+    "beat": ["orchestral_drums", "timpani", "percussion", "drums"],
+    "melody": ["violin", "strings", "flute", "melody"],
+    "harmony": ["strings", "orchestral_strings", "harmony", "pads"],
+    "bassline": ["cello", "contrabass", "bass"]
+  },
+  "drum_pool_names": ["classical_orchestral"]
+}

@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +31,21 @@ DEFAULT_LEVELS_FILE              = os.path.join(DEFAULT_PROJECT_ROOT, "levels.js
 DEFAULT_SONG_STRUCTURES_FILE     = os.path.join(DEFAULT_PROJECT_ROOT, "song_structures.json")
 DEFAULT_CHORD_PATTERNS_FILE      = os.path.join(DEFAULT_PROJECT_ROOT, "chord_patterns.txt")
 
+_DEFAULT_GENRES_DEFAULT_DIR = os.path.join(DEFAULT_PROJECT_ROOT, "genres", "default")
+
 DEFAULT_BEAT_ROLL_PATTERN_FILES: Dict[str, str] = {
-    "2/4":  os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_24.txt"),
-    "3/4":  os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_34.txt"),
-    "4/4":  os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_44.txt"),
-    "6/8":  os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_68.txt"),
-    "7/8":  os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_78.txt"),
-    "12/8": os.path.join(DEFAULT_PROJECT_ROOT, "beat_roll_patterns_128.txt"),
+    "2/4":  os.path.join(_DEFAULT_GENRES_DEFAULT_DIR, "patterns_24.txt"),
+    "3/4":  os.path.join(_DEFAULT_GENRES_DEFAULT_DIR, "patterns_34.txt"),
+    "4/4":  os.path.join(_DEFAULT_GENRES_DEFAULT_DIR, "patterns_44.txt"),
+    "5/4":  os.path.join(_DEFAULT_GENRES_DEFAULT_DIR, "patterns_54.txt"),
+    "6/8":  os.path.join(_DEFAULT_GENRES_DEFAULT_DIR, "patterns_68.txt"),
+    "7/8":  os.path.join(_DEFAULT_GENRES_DEFAULT_DIR, "patterns_78.txt"),
+    "12/8": os.path.join(_DEFAULT_GENRES_DEFAULT_DIR, "patterns_128.txt"),
 }
+
+DEFAULT_BEAT_ROLL_PATTERN_DIRS: List[str] = [_DEFAULT_GENRES_DEFAULT_DIR]
+
+DEFAULT_GENRES_DIR = os.path.join(DEFAULT_PROJECT_ROOT, "genres")
 
 SOUNDFONT_POOL_WARN_THRESHOLD = 3  # D-09: warn when a layer has fewer than 3 .sf2 files
 
@@ -56,6 +63,9 @@ class Config:
     beat_roll_pattern_files: Dict[str, str] = field(
         default_factory=lambda: dict(DEFAULT_BEAT_ROLL_PATTERN_FILES)
     )
+    beat_roll_pattern_dirs: List[str] = field(
+        default_factory=lambda: list(DEFAULT_BEAT_ROLL_PATTERN_DIRS)
+    )
 
     # --- Phase 5 fields (D-09, D-21, D-25, D-27) ---
     dataset_root: str = field(
@@ -71,6 +81,14 @@ class Config:
     # --- Phase 6 fields (D-47, D-48, D-49) ---
     output_mode: str = "full"   # R-P14: full | mix-only | stems-only | midi-only
     count: int = 1              # R-P12: number of samples for generate_batch
+
+    # --- soundfont_manager integration (opt-in, v0.2) ---
+    soundfont_manager_db: Optional[str] = None      # path to SoundfontManager JSON db
+    soundfont_manager_sf_dir: Optional[str] = None  # base dir for .sf2 files (sm sf2_directory)
+
+    # --- genre system (v0.2) ---
+    genre: Optional[List[str]] = None               # list of genre names to compose
+    genres_dir: str = DEFAULT_GENRES_DIR            # root dir for genre spec files
 
     _VALID_OUTPUT_MODES = frozenset({"full", "mix-only", "stems-only", "midi-only"})
 
@@ -132,6 +150,25 @@ class Config:
                 cfg.count = int(count_env)
             except ValueError:
                 logger.warning("MUSICGEN_COUNT is not an integer: %r", count_env)
+        sfm_db_env = os.environ.get("MUSICGEN_SOUNDFONT_MANAGER_DB")
+        if sfm_db_env:
+            cfg.soundfont_manager_db = os.path.abspath(sfm_db_env)
+        sfm_sf_dir_env = os.environ.get("MUSICGEN_SOUNDFONT_MANAGER_SF_DIR")
+        if sfm_sf_dir_env:
+            cfg.soundfont_manager_sf_dir = os.path.abspath(sfm_sf_dir_env)
+        beat_dirs_env = os.environ.get("MUSICGEN_BEAT_PATTERN_DIRS")
+        if beat_dirs_env:
+            cfg.beat_roll_pattern_dirs = [
+                os.path.abspath(d.strip())
+                for d in beat_dirs_env.split(os.pathsep)
+                if d.strip()
+            ]
+        genre_env = os.environ.get("MUSICGEN_GENRE")
+        if genre_env:
+            cfg.genre = [g.strip() for g in genre_env.split(",") if g.strip()]
+        genres_dir_env = os.environ.get("MUSICGEN_GENRES_DIR")
+        if genres_dir_env:
+            cfg.genres_dir = os.path.abspath(genres_dir_env)
 
         # cli layer (D-02 top layer; framework-agnostic — avoids typer dep in Phase 2)
         if cli_overrides:

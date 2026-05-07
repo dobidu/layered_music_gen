@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import random
+import sys
+import types
 from pathlib import Path
 from unittest.mock import patch
 
@@ -210,3 +212,144 @@ class TestRenderStems:
         del soundfonts["bassline"]
         with pytest.raises(KeyError, match="bassline"):
             render_stems(midi_paths, soundfonts, str(tmp_path / "stems"))
+
+
+# ---------- soundfont_manager integration (opt-in, seed-deterministic) ----------
+
+def _make_sm_module(layer_tag_to_paths: dict) -> types.ModuleType:
+    """Build a fake soundfont_manager module for testing.
+
+    layer_tag_to_paths maps a representative tag (str) to a list of path strings.
+    FakeSM.get_soundfonts_by_tags returns the first matching list.
+    """
+    mod = types.ModuleType("soundfont_manager")
+
+    class FakeSF:
+        def __init__(self, path: str):
+            self.path = path
+
+    _data = {tag: [FakeSF(p) for p in paths] for tag, paths in layer_tag_to_paths.items()}
+
+    class FakeSM:
+        def __init__(self, json_path: str, sf2_directory=None):
+            self.sf2_directory = sf2_directory
+
+        def get_soundfonts_by_tags(self, tags, match_all=False):
+            for tag in tags:
+                if tag in _data:
+                    return _data[tag]
+            return []
+
+        def get_absolute_path(self, sf):
+            if self.sf2_directory:
+                return os.path.join(self.sf2_directory, sf.path)
+            return sf.path
+
+    mod.SoundfontManager = FakeSM
+    return mod
+
+
+_FULL_SM_MOD = _make_sm_module({
+    "drums":   ["sm_beat_a.sf2", "sm_beat_b.sf2"],
+    "melody":  ["sm_melody.sf2"],
+    "harmony": ["sm_harmony.sf2"],
+    "pads":    ["sm_pads.sf2"],
+    "bass":    ["sm_bass.sf2"],
+})
+
+
+@pytest.fixture
+def cfg_with_sm_db(tmp_path):
+    """Config with soundfont_manager_db set; fallback sf dirs also populated."""
+    import config as cfg_module
+    cfg = cfg_module.Config()
+    cfg.sf_dir = str(tmp_path / "sf")
+    cfg.soundfont_manager_db = str(tmp_path / "soundfonts.json")  # new field
+    for layer in ("beat", "melody", "harmony", "bassline"):
+        layer_dir = tmp_path / "sf" / layer
+        layer_dir.mkdir(parents=True)
+        (layer_dir / "fallback.sf2").write_bytes(b"RIFF")
+    return cfg
+
+
+class TestPickSoundfontsWithSoundfontManager:
+    """soundfont_manager integration: opt-in, seed-deterministic, layer-aware."""
+
+    def test_uses_sm_when_db_configured(self, cfg_with_sm_db):
+        with patch.dict(sys.modules, {"soundfont_manager": _FULL_SM_MOD}):
+            result = pick_soundfonts(cfg=cfg_with_sm_db, rng=random.Random(42))
+        assert set(result.keys()) == {"beat", "melody", "harmony", "bassline"}
+        for path in result.values():
+            assert os.path.basename(path).startswith("sm_"), (
+                f"expected SM-sourced path, got {path!r}"
+            )
+
+    def test_sm_deterministic_same_seed(self, cfg_with_sm_db):
+        with patch.dict(sys.modules, {"soundfont_manager": _FULL_SM_MOD}):
+            a = pick_soundfonts(cfg=cfg_with_sm_db, rng=random.Random(0))
+            b = pick_soundfonts(cfg=cfg_with_sm_db, rng=random.Random(0))
+        assert a == b
+
+    def test_fallback_when_sm_not_installed(self, cfg_with_sm_db):
+        with patch.dict(sys.modules, {"soundfont_manager": None}):
+            result = pick_soundfonts(cfg=cfg_with_sm_db, rng=random.Random(42))
+        for path in result.values():
+            assert "fallback" in path, f"expected fallback path, got {path!r}"
+
+    def test_fallback_when_sm_returns_no_matches(self, cfg_with_sm_db):
+        empty_mod = _make_sm_module({})
+        with patch.dict(sys.modules, {"soundfont_manager": empty_mod}):
+            result = pick_soundfonts(cfg=cfg_with_sm_db, rng=random.Random(42))
+        for path in result.values():
+            assert "fallback" in path, f"expected fallback path, got {path!r}"
+
+    def test_no_sm_db_skips_sm_entirely(self, fake_cfg):
+        """When soundfont_manager_db is unset, SM is never consulted."""
+        with patch.dict(sys.modules, {"soundfont_manager": _FULL_SM_MOD}):
+            result = pick_soundfonts(cfg=fake_cfg, rng=random.Random(42))
+        for path in result.values():
+            assert not os.path.basename(path).startswith("sm_"), (
+                f"SM should not be used without soundfont_manager_db; got {path!r}"
+            )
+
+
+class TestRendererLayerTags:
+    """_LAYER_TAGS covers all 4 layers with meaningful tags."""
+
+    def test_layer_tags_covers_all_layers(self):
+        from musicgen.renderer import _LAYER_TAGS
+        assert set(_LAYER_TAGS.keys()) == {"beat", "melody", "harmony", "bassline"}
+
+    def test_beat_has_percussion_tag(self):
+        from musicgen.renderer import _LAYER_TAGS
+        assert any("drum" in t or "percussion" in t for t in _LAYER_TAGS["beat"])
+
+    def test_bassline_has_bass_tag(self):
+        from musicgen.renderer import _LAYER_TAGS
+        assert any("bass" in t for t in _LAYER_TAGS["bassline"])
+
+
+class TestConfigSoundfontManagerFields:
+    """Config exposes soundfont_manager_db and soundfont_manager_sf_dir fields."""
+
+    def test_soundfont_manager_db_defaults_none(self):
+        import config as cfg_module
+        cfg = cfg_module.Config()
+        assert cfg.soundfont_manager_db is None
+
+    def test_soundfont_manager_sf_dir_defaults_none(self):
+        import config as cfg_module
+        cfg = cfg_module.Config()
+        assert cfg.soundfont_manager_sf_dir is None
+
+    def test_soundfont_manager_db_env_var(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MUSICGEN_SOUNDFONT_MANAGER_DB", str(tmp_path / "sm.json"))
+        import config as cfg_module
+        cfg = cfg_module.Config.load()
+        assert cfg.soundfont_manager_db == str(tmp_path / "sm.json")
+
+    def test_soundfont_manager_sf_dir_env_var(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MUSICGEN_SOUNDFONT_MANAGER_SF_DIR", str(tmp_path / "sf2"))
+        import config as cfg_module
+        cfg = cfg_module.Config.load()
+        assert cfg.soundfont_manager_sf_dir == str(tmp_path / "sf2")

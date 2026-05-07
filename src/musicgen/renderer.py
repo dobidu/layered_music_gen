@@ -36,6 +36,7 @@ from midi2audio import FluidSynth
 from pydub import AudioSegment
 
 import config
+from musicgen.genre import GenreSpec
 
 logger = logging.getLogger(__name__)
 
@@ -99,31 +100,104 @@ class RenderResult:
 
 _LAYERS = ("beat", "melody", "harmony", "bassline")
 
+# Preferred timbre tags per layer for SoundfontManager-backed selection.
+# Tags are tried in the order soundfont_manager.get_soundfonts_by_tags receives them;
+# any single match suffices (match_all=False).
+_LAYER_TAGS: Dict[str, list] = {
+    "beat":     ["drums", "percussion"],
+    "melody":   ["melody", "lead", "piano", "strings"],
+    "harmony":  ["harmony", "chords", "pads", "pad"],
+    "bassline": ["bass"],
+}
+
+
+def _pick_via_soundfont_manager(
+    cfg: config.Config,
+    rng: random.Random,
+    layer_tags: Optional[Dict[str, list]] = None,
+) -> Optional[Dict[str, str]]:
+    """SoundfontManager-backed selection. Returns None to signal directory-scan fallback.
+
+    Lazy-imports soundfont_manager so the package remains an optional dependency.
+    Candidates are sorted by path before rng.choice to guarantee cross-machine
+    determinism (same seed → same pick regardless of DB insertion order).
+
+    When ``layer_tags`` is supplied, each layer uses those tags instead of
+    the static ``_LAYER_TAGS``. Layers absent from ``layer_tags`` fall back
+    to ``_LAYER_TAGS[layer]``.
+    """
+    try:
+        from soundfont_manager import SoundfontManager  # noqa: PLC0415
+    except ImportError:
+        logger.debug("soundfont_manager not installed; using directory-scan fallback")
+        return None
+
+    try:
+        sm = SoundfontManager(cfg.soundfont_manager_db, cfg.soundfont_manager_sf_dir)
+        result: Dict[str, str] = {}
+        for layer in _LAYERS:
+            tags = (layer_tags or {}).get(layer) or _LAYER_TAGS[layer]
+            candidates = sm.get_soundfonts_by_tags(tags, match_all=False)
+            if not candidates:
+                logger.warning(
+                    "soundfont_manager: no soundfonts tagged %r for layer %r; "
+                    "using directory-scan fallback",
+                    tags, layer,
+                )
+                return None
+            candidates = sorted(candidates, key=lambda sf: sf.path)
+            result[layer] = sm.get_absolute_path(rng.choice(candidates))
+        return result
+    except Exception as exc:
+        logger.warning(
+            "soundfont_manager selection failed (%s: %s); using directory-scan fallback",
+            type(exc).__name__, exc,
+        )
+        return None
+
 
 def pick_soundfonts(
     cfg: Optional[config.Config] = None,
     rng: Optional[random.Random] = None,
+    genre_spec: Optional[GenreSpec] = None,
 ) -> Dict[str, str]:
     """Select one ``.sf2`` file per layer (D-08/D-17).
 
-    Replaces the four ``random.choice(sound_fonts)`` draws in
-    ``music_gen.py:get_random_sound_font`` (4 call sites in ``mix_and_save``).
+    When ``cfg.soundfont_manager_db`` is set and the ``soundfont_manager``
+    package is installed, delegates to :func:`_pick_via_soundfont_manager` for
+    tag-aware, metadata-rich selection. Falls back to a sorted directory scan
+    when soundfont_manager is not installed, the db path is unset, or no
+    soundfonts match the layer's tags.
+
+    When ``genre_spec.soundfont_tags`` is non-empty, those tags are used
+    per-layer for SM selection (layers absent from the dict fall back to
+    static ``_LAYER_TAGS``). When ``genre_spec`` is None, behavior is identical
+    to pre-genre (backward compat).
 
     Args:
         cfg: Optional Config (D-25 fallback to ``config.Config()`` if None).
         rng: Injected ``random.Random`` (required for determinism; D-17 forbids
             bare ``random.<method>`` at module scope).
+        genre_spec: Optional merged :class:`GenreSpec` for soundfont tag overrides.
 
     Returns:
         Dict mapping layer name -> absolute ``.sf2`` path.
 
     Raises:
         ValueError: if ``rng`` is None (D-17 guard).
-        FileNotFoundError: if no ``.sf2`` files exist for any layer.
+        FileNotFoundError: if no ``.sf2`` files exist for any layer (directory
+            scan path only; SM path returns None on empty results).
     """
     if rng is None:
         raise ValueError("pick_soundfonts requires an injected rng (D-17)")
     _cfg = cfg if cfg is not None else config.Config()
+
+    if getattr(_cfg, "soundfont_manager_db", None):
+        layer_tags = (genre_spec.soundfont_tags or {}) if genre_spec else None
+        sm_result = _pick_via_soundfont_manager(_cfg, rng, layer_tags=layer_tags or None)
+        if sm_result is not None:
+            return sm_result
+
     soundfonts: Dict[str, str] = {}
     for layer in _LAYERS:
         sf_dir = _cfg.sf_layer_dir(layer)

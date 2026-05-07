@@ -1,148 +1,233 @@
 # External Integrations
 
-**Analysis Date:** 2026-04-08
-
-## Audio Libraries & APIs
-
-**MIDI Generation:**
-- midiutil - Creates MIDI files from programmatic note data
-  - Client: `MIDIFile` class from midiutil
-  - Usage: `/home/openclaw/musicgen/music_gen.py` functions (lines 1-200)
-  - Integration: Generates chord progressions, melodies, basslines, and beats as MIDI tracks
-
-**Music Theory:**
-- music21 - Provides musical scale, chord, and note analysis
-  - Client: `from music21 import *` (imported globally)
-  - Usage: Throughout `/home/openclaw/musicgen/music_gen.py` for note generation and manipulation
-
-**MIDI to Audio Synthesis:**
-- midi2audio - Converts MIDI files to WAV using FluidSynth
-  - Client: `FluidSynth` class from midi2audio
-  - Usage: `apply_fx_to_layer()` and `mix_and_save()` functions in `/home/openclaw/musicgen/music_gen.py` (lines 727-900)
-  - Dependency: Requires FluidSynth binary installed on system
-  - Soundfonts: Uses .sf2 SoundFont files from `/home/openclaw/musicgen/sf/` directory
-
-## Soundfont Integration
-
-**SoundFont Management:**
-- SoundFont files (.sf2 format) stored in: `/home/openclaw/musicgen/sf/`
-- Catalog: `/home/openclaw/musicgen/soundfonts.json` defines available soundfonts by layer
-- Selection: `get_random_sound_font()` function randomly selects soundfonts per layer (melody, harmony, bassline, beat)
-- Audio synthesis: FluidSynth renders selected soundfonts with MIDI note data
-
-**SoundFont Sources:**
-- User-supplied: Place .sf2 files in appropriate subdirectory (sf/melody/, sf/harmony/, sf/bassline/, sf/beat/)
-- Download sources documented in `/home/openclaw/musicgen/sf/soundfonts.txt`:
-  - Zanderjaz.com
-  - TriSamples.com
-  - ProducersBuzz.com
-  - GitHub free-soundfonts collection
-  - Archive.org 500 Soundfonts collection
-
-## Audio Processing & Effects
-
-**Real-time Effects:**
-- pedalboard - Audio effects processing chain
-  - Location: `/home/openclaw/musicgen/music_gen.py` (lines 695-760)
-  - Effects available:
-    - Compressor (threshold_db, ratio, attack_ms, release_ms)
-    - Gain (gain_db)
-    - Chorus (depth, feedback, rate_hz)
-    - LadderFilter (cutoff_hz, resonance)
-    - Phaser (depth, feedback, rate_hz, centre_frequency_hz)
-    - Delay (delay_seconds, mix)
-    - Reverb (room_size)
-  - Configuration: Per-layer effect probability and parameter ranges in JSON files:
-    - `beat_fx.json`
-    - `melody_fx.json`
-    - `harmony_fx.json`
-    - `bassline_fx.json`
-
-**Audio Feature Analysis:**
-- librosa - Audio signal analysis
-  - Functions: Beat tracking, chroma feature extraction, onset strength detection
-  - Usage: `musicality_score.py` module for analyzing generated audio quality
-  - Integration points:
-    - `librosa.beat.beat_track()` - Tempo and beat analysis
-    - `librosa.feature.chroma_cqt()` - Harmonic content analysis
-    - `librosa.feature.tonnetz()` - Tonal feature extraction
-    - `librosa.onset.onset_strength()` - Rhythm clarity measurement
-
-**Audio Format Conversion:**
-- pydub - Audio file manipulation
-  - Client: `AudioSegment` class
-  - Usage: `mix_and_save()` function for combining tracks and exporting
-  - Supported formats: WAV, MP3, OGG (via ffmpeg/libav)
-
-## Data Storage
-
-**Configuration Files (Read-only):**
-- JSON files: Song structures, effect parameters, instrument probabilities, volume/pan levels
-  - `song_structures.json` - Song arrangement templates
-  - `inst_probabilities.json` - Layer selection probabilities
-  - `levels.json` - Volume and panning per section
-  - `soundfonts.json` - Soundfont catalog
-
-**Pattern Files (Read-only):**
-- Text files with chord and beat patterns
-  - `chord_patterns.txt` - Chord progressions
-  - `beat_roll_patterns_*.txt` - Beat roll patterns (separated by time signature)
-  - `beats_annotations.txt` - Beat annotation templates
-
-**Output Storage:**
-- Local file system only
-- MIDI files: Generated in memory, saved to disk
-- WAV files: Generated from MIDI synthesis, saved per track and mixed
-- File naming: Uses timestamp and UUID for uniqueness (e.g., `20260408180500_abc12-20`)
-
-## Internal Audio Processing Pipeline
-
-**Generation Flow:**
-1. Generate chord progression as MIDI (`generate_chord_progression()`)
-2. Generate melody MIDI from chord progression (`generate_melody()`)
-3. Generate bassline MIDI from chord progression and melody (`generate_bassline()`)
-4. Generate beat MIDI with drum patterns (`generate_beat()`)
-5. Convert MIDI tracks to WAV using FluidSynth with selected soundfonts (`apply_fx_to_layer()`)
-6. Apply audio effects from pedalboard per track
-7. Mix all tracks together with volume/panning from `levels.json` (`mix_and_save()`)
-
-**Musicality Analysis:**
-- Custom module: `/home/openclaw/musicgen/musicality_score.py`
-- Analyzes generated audio using librosa for:
-  - Tempo stability and reasonableness
-  - Harmonic clarity and consonance
-  - Rhythmic coherence
-  - Timbre characteristics
-  - Noise/artifact detection
-
-## Validation
-
-**Time Signature Validation:**
-- Custom module: `/home/openclaw/musicgen/enhanced_duration_validator.py`
-- Validates note durations against time signature requirements
-- Supports:
-  - Simple meters (2/4, 3/4, 4/4)
-  - Compound meters (6/8, 9/8, 12/8)
-  - Duration caching for performance
-
-**Pattern Validation:**
-- Functions: `verify_pattern_for_time_signature()`, `verify_beat_pattern()`, `validate_measures()`
-- Ensures generated patterns conform to time signature rules
-
-## Logging & Monitoring
-
-**Logging Framework:**
-- python-json-logger - Structured JSON logging (if configured)
-- Standard Python logging module for internal analysis warnings/errors
-- Musicality analyzer logs analysis steps and errors to logger
-
-## Dependencies at System Level
-
-**Required System Binaries:**
-- FluidSynth - MIDI to audio synthesis engine (invoked via midi2audio)
-- libmagic - File type detection (for python-magic)
-- ffmpeg/libav - Audio codec support (for pydub format conversion)
+**Last updated:** 2026-04-29
+**Status:** v0.1.0 shipped; v0.2 ecosystem integrations complete (branch feat/soundfont-manager)
 
 ---
 
-*Integration audit: 2026-04-08*
+## Runtime dependencies (always required)
+
+| Library | Role | Key usage |
+|---|---|---|
+| midiutil | MIDI file generation | `generators/{chord,melody,bassline,beat}.py` — builds MIDI tracks from note data |
+| music21 | Music theory primitives | `generators/chord.py`, `sampler.py` — scales, key selection, chord naming |
+| midi2audio / FluidSynth | MIDI → WAV synthesis | `renderer.py` — `FluidSynth.midi_to_audio()` per layer stem |
+| pedalboard | Audio FX chain | `mixer.py` — Compressor, Reverb, Delay, Chorus, Phaser, Filter, Gain applied per layer |
+| pydub | Audio overlay + export | `mixer.py` — `mix_part`, `concat_parts`, WAV file I/O |
+| librosa | Audio feature analysis | `musicality.py` — beat tracking, chroma, tonnetz, onset strength |
+| mido | MIDI tick extraction | `beats.py` — swing-aware beat/downbeat time derivation |
+| python-magic | File type detection | `writer.py` — WAV format validation |
+| typer | CLI framework | `cli.py` — `generate`, `clean`, `calibrate`, `index-midi`, `index-audio` |
+
+---
+
+## Optional integrations (v0.2) — sibling ecosystem
+
+All three integrations are **opt-in** with zero hard dependencies added to `pyproject.toml`. Each library is lazy-imported at call time; a clear `ImportError` is raised with an install hint if the library is absent.
+
+### Integration 1 — soundfont_manager → musicgen
+
+**Repo:** `dobidu/soundfont_manager`
+**Purpose:** Replace blind `rng.choice(os.listdir(...))` in soundfont selection with metadata-aware, tag-based selection from a SoundfontManager JSON database.
+
+**Activation:** set `cfg.soundfont_manager_db` (or env var `MUSICGEN_SOUNDFONT_MANAGER_DB`).
+
+**Files changed:**
+- `config.py` — added `soundfont_manager_db: Optional[str]` and `soundfont_manager_sf_dir: Optional[str]`
+- `src/musicgen/renderer.py` — added `_LAYER_TAGS`, `_pick_via_soundfont_manager()`, updated `pick_soundfonts()`
+
+**How it works:**
+
+```
+pick_soundfonts(cfg, rng)
+  ├─ if cfg.soundfont_manager_db is set:
+  │    _pick_via_soundfont_manager(cfg, rng)
+  │      ├─ import soundfont_manager.SoundfontManager  (lazy)
+  │      ├─ for each layer: sm.get_soundfonts_by_tags(_LAYER_TAGS[layer])
+  │      ├─ sort candidates by sf.path  (cross-machine determinism)
+  │      ├─ rng.choice(sorted_candidates)
+  │      └─ return sm.get_absolute_path(chosen)  per layer
+  │    if import fails or no matches → fall through
+  └─ fallback: sorted(os.listdir(sf_layer_dir)) + rng.choice()
+```
+
+**Layer → tag mapping (`_LAYER_TAGS`):**
+
+| Layer | Tags searched |
+|---|---|
+| `beat` | `["drums", "percussion"]` |
+| `melody` | `["melody", "lead", "piano", "strings"]` |
+| `harmony` | `["harmony", "chords", "pads", "pad"]` |
+| `bassline` | `["bass"]` |
+
+**Determinism contract:** same `(global_seed, sample_index)` → same soundfont pick. Candidates are sorted by `sf.path` (relative path from db) before `rng.choice`, so insertion order in the SM database does not affect the result.
+
+**Fallback triggers:** `ImportError` (package not installed), empty tag result for any layer, any exception inside SM.
+
+---
+
+### Integration 2 — musicgen → midi_file_manager
+
+**Repo:** `dobidu/midi_file_manager`
+**Purpose:** Index all generated MIDI files into a MidiManager database with musicgen ground-truth metadata, enabling downstream ML pipelines to query by tempo, key, time signature, split, etc.
+
+**Files added:**
+- `src/musicgen/midi_indexer.py` — `index_midi_dataset()` library function
+- `src/musicgen/cli.py` — `musicgen index-midi` command
+
+**Dataset walk:**
+```
+dataset_root/
+  000000/
+    sample.json       ← ground-truth: tempo_bpm, key, time_signature, split, musicality_score
+    midi/
+      beat.mid        ← indexed
+      melody.mid      ← indexed
+      harmony.mid     ← indexed
+      bassline.mid    ← indexed
+  000001/
+    ...
+```
+
+**Enrichment flow:**
+```
+for each sample_dir with sample.json + midi/:
+  for each layer in (beat, melody, harmony, bassline):
+    meta = mm.add_midi(path, analyze=True, save=False)   # MIDI structure analysis
+    meta.bpm           = sample["tempo_bpm"]             # override MIDI-extracted
+    meta.key           = sample["key"]
+    meta.time_signature = sample["time_signature"]
+    meta.category      = _LAYER_CATEGORY[layer]          # beat→drums, bassline→bass, …
+    meta.tags          = ["musicgen", layer, split]
+    meta.description   = f"musicgen:{entry} layer={layer} split={split} musicality={score:.3f}"
+mm.save_midis()  # single write at end
+```
+
+**Layer → MidiCategory mapping:**
+
+| Layer | MidiCategory |
+|---|---|
+| `beat` | `"drums"` |
+| `melody` | `"melody"` |
+| `harmony` | `"harmony"` |
+| `bassline` | `"bass"` |
+
+**Fallback:** `ImportError` if `midi_manager` package not installed. `FileNotFoundError` if `dataset_root` missing.
+
+---
+
+### Integration 3 — musicgen → audio_sample_manager
+
+**Repo:** `dobidu/audio_sample_manager`
+**Purpose:** Index generated WAV stems into a SampleManager database alongside external audio libraries, enabling unified cross-library queries and `SampleSelector.select_for_layer()` across both generated and externally-sourced audio.
+
+**Primary use case:** A producer or researcher has external drum packs, synth loops, etc. already in a SampleManager db. Running `musicgen index-audio` adds musicgen's generated stems to the same db, so queries like "all bass stems at 90 BPM in Am minor" return both external and generated samples.
+
+**Files added:**
+- `src/musicgen/audio_indexer.py` — `index_audio_dataset()` library function
+- `src/musicgen/cli.py` — `musicgen index-audio` command
+
+**Dataset walk:**
+```
+dataset_root/
+  000000/
+    sample.json       ← ground-truth: tempo_bpm, key, mode, time_signature, split, musicality_score
+    stems/
+      beat.wav        ← indexed
+      melody.wav      ← indexed
+      harmony.wav     ← indexed
+      bassline.wav    ← indexed
+  000001/
+    ...
+```
+
+**Enrichment flow:**
+```
+for each sample_dir with sample.json + stems/:
+  for each layer in (beat, melody, harmony, bassline):
+    meta = sm.add_sample(path, analyze=True, save=False)  # librosa feature extraction
+    meta.bpm           = sample["tempo_bpm"]              # override librosa-extracted
+    meta.key           = sample["key"]
+    meta.time_signature = sample["time_signature"]
+    meta.scale         = sample["mode"]                   # "major" | "minor"
+    meta.category      = _LAYER_CATEGORY[layer]           # beat→beat, bassline→bass, …
+    meta.tags          = ["musicgen", layer, split]
+    meta.is_loop       = False                            # stems are full songs, not loops
+    meta.description   = f"musicgen:{entry} layer={layer} split={split} musicality={score:.3f}"
+sm.save_samples()  # single write at end
+```
+
+**Layer → SampleCategory mapping:**
+
+| Layer | SampleCategory |
+|---|---|
+| `beat` | `"beat"` |
+| `melody` | `"melody"` |
+| `harmony` | `"harmony"` |
+| `bassline` | `"bass"` |
+
+**Ground-truth vs librosa:** `bpm`, `key`, `time_signature`, and `scale` come from `sample.json` (exact, no re-extraction). `waveform_features` and `spectral_features` come from `analyze_sample()` (librosa), which covers timbre characteristics not tracked by musicgen.
+
+**`is_loop = False`:** musicgen stems span full songs (intro+verse+chorus+outro concatenated). They are not fixed-length loops.
+
+**Note on `mix.wav`:** Not indexed. `SampleCategory` has no `full_song` value; the mix is better represented by the individual stems that compose it.
+
+---
+
+## Configuration reference
+
+### soundfont_manager fields (Config)
+
+| Field | Env var | Default | Description |
+|---|---|---|---|
+| `soundfont_manager_db` | `MUSICGEN_SOUNDFONT_MANAGER_DB` | `None` | Path to SoundfontManager JSON database. Set to activate SM-backed selection. |
+| `soundfont_manager_sf_dir` | `MUSICGEN_SOUNDFONT_MANAGER_SF_DIR` | `None` | Base directory for `.sf2` files (SM's `sf2_directory` constructor arg). Set when db stores relative paths. |
+
+### CLI commands
+
+| Command | Lazy dep | Key options |
+|---|---|---|
+| `musicgen index-midi` | `midi_manager` (dobidu/midi_file_manager) | `--dataset`, `--out`, `--midi-dir`, `--csv` |
+| `musicgen index-audio` | `sample_manager` (dobidu/audio_sample_manager) | `--dataset`, `--out`, `--samples-dir`, `--csv` |
+
+---
+
+## Internal audio pipeline (unchanged from v0.1)
+
+```
+sampler → generators (chord/melody/bassline/beat)
+       → renderer (FluidSynth, parallel stems via ThreadPoolExecutor)
+       → mixer (pedalboard FX + pydub overlay + concat)
+       → beats (mido MIDI-tick extraction, swing-aware)
+       → annotator (sample.json schema assembly)
+       → writer (atomic dir, sum-of-stems assertion, output_mode routing)
+       → manifest (JSONL append-under-lock)
+```
+
+---
+
+## Dependency audit
+
+### Hard dependencies (pyproject.toml)
+
+All present and required for core generation pipeline. No new hard deps were added in v0.2.
+
+### Optional (not in pyproject.toml)
+
+| Package | Imported by | Install |
+|---|---|---|
+| `soundfont_manager` | `renderer._pick_via_soundfont_manager` | `pip install git+https://github.com/dobidu/soundfont_manager` |
+| `midi_manager` | `midi_indexer.index_midi_dataset` | `pip install git+https://github.com/dobidu/midi_file_manager` |
+| `sample_manager` | `audio_indexer.index_audio_dataset` | `pip install git+https://github.com/dobidu/audio_sample_manager` |
+
+### System binaries
+
+| Binary | Required for | Install |
+|---|---|---|
+| `fluidsynth` | WAV synthesis | `apt install fluidsynth` / `brew install fluidsynth` |
+| `ffmpeg` or `avconv` | pydub format conversion | `apt install ffmpeg` |
+| `libmagic` | python-magic (file type detection) | `apt install libmagic1` |
+
+---
+
+*Integration audit updated: 2026-04-29*

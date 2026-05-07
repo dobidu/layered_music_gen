@@ -1,0 +1,16 @@
+# Classical 4/4 patterns (orchestral percussion: timpani=36, snare roll=38)
+# Kick/Timpani=36, Snare=38, Crash=49, Ride=51
+intro: 36, 0, 38, 0
+intro: 36, 0, 0, 0
+verse: 36, 0, 38, 0
+verse: 0, 0, 38, 0
+chorus: 36, 0, 38, 49
+chorus: 36, 38, 0, 38
+bridge: 36, 0, 0, 0
+outro: 36, 0, 38, 0
+outro: 36, 0, 0, 49
+intro_roll: 36, 38, 38, 38
+verse_roll: 36, 0, 38, 38
+chorus_roll: 49, 38, 38, 49
+bridge_roll: 36, 38, 0, 38
+outro_roll: 36, 38, 38, 49

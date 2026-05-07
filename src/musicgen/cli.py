@@ -26,10 +26,13 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 import typer
+from typing import List
 
 from musicgen.api import Config
 from musicgen import calibrate
 from musicgen.batch import generate_batch
+from musicgen.midi_indexer import index_midi_dataset
+from musicgen.audio_indexer import index_audio_dataset
 
 app = typer.Typer(
     help="musicgen — synthetic music dataset generator",
@@ -69,6 +72,8 @@ def generate(
     out: str = typer.Option("./dataset", "--out", "-o", help="Dataset output directory."),
     workers: Optional[int] = typer.Option(None, "--workers", "-w", help="Parallel workers (default: os.cpu_count())."),
     output_mode: str = typer.Option("full", "--output-mode", "-m", help="full | mix-only | stems-only | midi-only."),
+    genre: Optional[List[str]] = typer.Option(None, "--genre", "-g", help="Genre name(s) to constrain generation (repeatable: --genre jazz --genre latin)."),
+    genres_dir: Optional[str] = typer.Option(None, "--genres-dir", help="Custom genres directory (default: <repo>/genres/)."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
 ) -> None:
@@ -83,13 +88,19 @@ def generate(
         )
         raise typer.Exit(code=1)
 
-    cfg = Config.load(cli_overrides={
+    overrides: dict = {
         "global_seed": seed,
         "count": count,
         "dataset_root": os.path.abspath(out),
         "workers": workers,
         "output_mode": output_mode,
-    })
+    }
+    if genre:
+        overrides["genre"] = list(genre)
+    if genres_dir:
+        overrides["genres_dir"] = os.path.abspath(genres_dir)
+
+    cfg = Config.load(cli_overrides=overrides)
 
     result = generate_batch(cfg)
 
@@ -106,6 +117,38 @@ def generate(
             err=True,
         )
         raise typer.Exit(code=1)
+
+
+@app.command(name="list-genres")
+def list_genres(
+    genres_dir: Optional[str] = typer.Option(None, "--genres-dir", help="Genres directory (default: <repo>/genres/)."),
+) -> None:
+    """List all available genre presets with descriptions."""
+    import config as cfg_module
+    from musicgen.genre import load_genre
+
+    _genres_dir = os.path.abspath(genres_dir) if genres_dir else cfg_module.DEFAULT_GENRES_DIR
+    if not os.path.isdir(_genres_dir):
+        typer.echo(f"Error: genres directory not found: {_genres_dir}", err=True)
+        raise typer.Exit(code=1)
+
+    genre_names = sorted(
+        name for name in os.listdir(_genres_dir)
+        if os.path.isdir(os.path.join(_genres_dir, name))
+        and os.path.isfile(os.path.join(_genres_dir, name, "spec.json"))
+    )
+    if not genre_names:
+        typer.echo(f"No genres found in {_genres_dir}")
+        return
+
+    typer.echo(f"Available genres ({len(genre_names)}):\n")
+    for name in genre_names:
+        try:
+            spec = load_genre(name, _genres_dir)
+            desc = spec.description or "(no description)"
+        except Exception:
+            desc = "(error loading spec)"
+        typer.echo(f"  {name:<16} {desc}")
 
 
 @app.command()
@@ -170,6 +213,78 @@ def calibrate_cmd(
         typer.echo(
             "(FluidSynth absent or no soundfonts found — offset defaulted to 0.0)"
         )
+
+
+@app.command(name="index-midi")
+def index_midi(
+    dataset: str = typer.Option(..., "--dataset", "-d", help="musicgen dataset root directory."),
+    out: str = typer.Option("./midi_db.json", "--out", "-o", help="Output MidiManager JSON database path."),
+    midi_dir: Optional[str] = typer.Option(None, "--midi-dir", help="Base dir for relative MIDI paths stored in the db."),
+    export_csv: Optional[str] = typer.Option(None, "--csv", help="Also export a CSV of all indexed entries."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
+) -> None:
+    """Index generated MIDI files into a MidiManager database (midi_file_manager)."""
+    _setup_logging(verbose, quiet)
+
+    dataset_path = os.path.abspath(dataset)
+    out_path = os.path.abspath(out)
+    csv_path = os.path.abspath(export_csv) if export_csv else None
+    midi_dir_path = os.path.abspath(midi_dir) if midi_dir else None
+
+    try:
+        count = index_midi_dataset(
+            dataset_root=dataset_path,
+            out_db=out_path,
+            midi_dir=midi_dir_path,
+            export_csv=csv_path,
+        )
+    except ImportError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+    except FileNotFoundError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Indexed {count} MIDI entries → {out_path}")
+    if csv_path:
+        typer.echo(f"CSV exported → {csv_path}")
+
+
+@app.command(name="index-audio")
+def index_audio(
+    dataset: str = typer.Option(..., "--dataset", "-d", help="musicgen dataset root directory."),
+    out: str = typer.Option("./audio_db.json", "--out", "-o", help="Output SampleManager JSON database path."),
+    samples_dir: Optional[str] = typer.Option(None, "--samples-dir", help="Base dir for relative WAV paths stored in the db."),
+    export_csv: Optional[str] = typer.Option(None, "--csv", help="Also export a CSV of all indexed entries."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
+) -> None:
+    """Index generated WAV stems into a SampleManager database (audio_sample_manager)."""
+    _setup_logging(verbose, quiet)
+
+    dataset_path = os.path.abspath(dataset)
+    out_path = os.path.abspath(out)
+    csv_path = os.path.abspath(export_csv) if export_csv else None
+    samples_dir_path = os.path.abspath(samples_dir) if samples_dir else None
+
+    try:
+        count = index_audio_dataset(
+            dataset_root=dataset_path,
+            out_db=out_path,
+            samples_dir=samples_dir_path,
+            export_csv=csv_path,
+        )
+    except ImportError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+    except FileNotFoundError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Indexed {count} audio entries → {out_path}")
+    if csv_path:
+        typer.echo(f"CSV exported → {csv_path}")
 
 
 if __name__ == "__main__":
