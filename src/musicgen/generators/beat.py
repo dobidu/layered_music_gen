@@ -18,7 +18,7 @@ No music21 imports (beat is percussion-only, per S3).
 import logging
 import os
 import random
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from midiutil import MIDIFile
 
@@ -32,6 +32,57 @@ from musicgen.beats import beat_duration  # noqa: F401  (D-21 re-export)
 from timesig import TimeSignatureRegistry
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Pattern loader (v0.2 Phase 3)
+# ---------------------------------------------------------------------------
+
+def _sig_to_flat(time_signature: str) -> str:
+    """Convert "4/4" → "44", "12/8" → "128", etc."""
+    return time_signature.replace("/", "")
+
+
+def load_beat_patterns(
+    time_signature: str,
+    pattern_dirs: List[str],
+    spec,
+) -> Dict[str, List[List[int]]]:
+    """Load and union beat patterns from multiple directories.
+
+    Each dir is searched for patterns_<sig_flat>.txt (e.g. patterns_44.txt).
+    Patterns from all dirs are unioned per part; identical patterns deduplicated.
+    Missing dirs and missing files are silently skipped.
+
+    Returns {part_name: [[n1, n2, ...], ...]} same structure as current loader.
+    """
+    flat = _sig_to_flat(time_signature)
+    seen: Dict[str, set] = {}
+    result: Dict[str, List[List[int]]] = {}
+
+    for d in pattern_dirs:
+        path = os.path.join(d, f"patterns_{flat}.txt")
+        if not os.path.isfile(path):
+            continue
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or ":" not in line:
+                    continue
+                part_name, pat_str = line.split(":", 1)
+                part_name = part_name.strip()
+                try:
+                    pattern = [int(x.strip()) for x in pat_str.split(",") if x.strip()]
+                except ValueError:
+                    continue
+                if not spec.verify_beat_pattern_length(len(pattern)):
+                    continue
+                key = tuple(pattern)
+                if key not in seen.setdefault(part_name, set()):
+                    seen[part_name].add(key)
+                    result.setdefault(part_name, []).append(pattern)
+
+    return result
 
 
 def calculate_swing_offset(base_duration: float, swing_amount: float) -> float:
@@ -79,7 +130,6 @@ def generate_beat(
     """
     validator = DurationValidator()
     _beat_cfg = cfg if cfg is not None else config.Config()
-    beat_pattern_files = dict(_beat_cfg.beat_roll_pattern_files)
 
     mf = MIDIFile(1)
     track = 0
@@ -95,26 +145,33 @@ def generate_beat(
 
     base_duration = validator.get_suggested_duration(time_signature, 'beat')
 
-    # MIDI values ​​for percussion instruments
     kick = 36
     snare = 38
     hihat = 42
 
-    # Reads patterns from file
-    filename = beat_pattern_files.get(time_signature)
-    if not filename:
-        raise ValueError(f"Time signature {time_signature} not supported.")
-
-    beat_patterns = {}
-    with open(filename, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                parts = line.split(':')
-                song_part = parts[0].strip()
-                pattern = [int(x) for x in parts[1].split(',')]
-                if spec.verify_beat_pattern_length(len(pattern)):
-                    beat_patterns.setdefault(song_part, []).append(pattern)
+    # Load patterns: prefer dirs-based loader (v0.2); fall back to file dict (legacy).
+    pattern_dirs = getattr(_beat_cfg, "beat_roll_pattern_dirs", [])
+    if pattern_dirs:
+        beat_patterns = load_beat_patterns(time_signature, pattern_dirs, spec)
+        if not beat_patterns:
+            raise ValueError(
+                f"No beat patterns found for {time_signature!r} in dirs: {pattern_dirs}"
+            )
+    else:
+        beat_pattern_files = dict(_beat_cfg.beat_roll_pattern_files)
+        filename = beat_pattern_files.get(time_signature)
+        if not filename:
+            raise ValueError(f"Time signature {time_signature} not supported.")
+        beat_patterns = {}
+        with open(filename, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    parts = line.split(":")
+                    song_part = parts[0].strip()
+                    pattern = [int(x) for x in parts[1].split(",")]
+                    if spec.verify_beat_pattern_length(len(pattern)):
+                        beat_patterns.setdefault(song_part, []).append(pattern)
 
     # default pattern
     if part not in beat_patterns or not beat_patterns[part]:
