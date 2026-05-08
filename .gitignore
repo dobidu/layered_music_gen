@@ -163,3 +163,8 @@ cython_debug/
 
 # FluidSynth pre-roll calibration cache (machine-specific)
 .musicgen/
+
+# Benchmark outputs (machine-specific)
+benchmarks/results/
+benchmarks/figures/
+presentation_prompts.txt
