@@ -1,45 +1,182 @@
-# Roteiro de Demonstração — musicgen
-**Duração total:** 3 min | **Slides:** encerram no slide 12 ("Let's see it run")
+# Roteiro de Demonstração — musicgen (Mac M4)
+**Duração total:** 3 min | **Contexto:** ao vivo após slide 12 ("Let's see it run")
 
 ---
 
-## Preparação (fazer ANTES da apresentação)
+## Estratégia
+
+O `pip install` leva ~2 min — não dá para fazer ao vivo. Estratégia:
+
+1. **Dias antes:** setup completo no Mac M4 (seção abaixo)
+2. **No palco:** abrir terminal LIMPO → mostrar que o repo está lá → ativar venv → demo
+3. A audiência vê "zero a rodando" sem esperar o install
+
+---
+
+## Preparação (fazer dias antes, no Mac M4)
+
+### 1. Dependências do sistema
 
 ```bash
-# 1. Ativar venv
-cd ~/musicgen
+# Xcode CLI (se não tiver)
+xcode-select --install
+
+# Homebrew (se não tiver)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# FluidSynth
+brew install fluidsynth
+
+# Python 3.12 (se não tiver via brew)
+brew install python@3.12
+```
+
+### 2. Clonar e instalar
+
+```bash
+cd ~
+git clone https://github.com/dobidu/layered_music_gen.git
+cd layered_music_gen
+
+python3 -m venv .venv
 source .venv/bin/activate
 
-# 2. Limpar dataset anterior
-rm -rf /tmp/demo_dataset
+pip install -e '.[dev]'
+pip install psutil               # para benchmarks
 
-# 3. Abrir notebook (segunda tela ou segunda aba)
+# confirmar
+musicgen --version
+```
+
+### 3. SoundFonts
+
+```bash
+# Copiar seus arquivos .sf2 para:
+ls sf/
+# beat/     → *.sf2
+# melody/   → *.sf2
+# harmony/  → *.sf2
+# bassline/ → *.sf2
+```
+
+> **Mínimo:** 1 arquivo por pasta. Mais = melhor variedade tímbrica.
+
+### 4. Gerar dataset de backup (Plano B)
+
+```bash
+source ~/.venv/bin/activate 2>/dev/null || source ~/layered_music_gen/.venv/bin/activate
+cd ~/layered_music_gen
+
+musicgen generate \
+  --count 5 \
+  --seed 42 \
+  --out /tmp/demo_dataset_backup \
+  --genre jazz
+
+# confirmar que gerou
+ls /tmp/demo_dataset_backup/
+```
+
+### 5. Pré-executar o notebook
+
+```bash
+cd ~/layered_music_gen
+source .venv/bin/activate
 jupyter notebook notebooks/musicgen_demo.ipynb
-#    → pré-executar células 5, 6, 12 (Kernel → Run All)
-#    → deixar as saídas visíveis, não limpar
+```
 
-# 4. Aumentar fonte do terminal: mínimo 18pt
-# 5. Testar lista de gêneros:
-musicgen list-genres
+- Executar **Kernel → Run All**
+- Confirmar que células 5, 6 e 12 têm saída
+- **Deixar o browser aberto** em background
+
+### 6. Verificação final
+
+```bash
+cd ~/layered_music_gen && source .venv/bin/activate
+
+musicgen --version                               # deve retornar 0.2.0
+musicgen list-genres                             # deve listar 8 gêneros
+fluidsynth --version                             # deve retornar versão
+pytest -m "not slow" -q --tb=no | tail -2       # deve mostrar 1046 passed
 ```
 
 ---
 
-## PARTE A — Terminal `[0:00 – 1:00]`
+## Preparação (30 min antes da palestra)
 
-### A1 — Mostrar os gêneros disponíveis `[~15s]`
+```bash
+# Terminal → fonte ≥ 18pt
+# Terminal.app: Cmd+, → Profiles → Font → aumentar
+# iTerm2: Cmd+, → Profiles → Text → Font size
+
+# Limpar dataset da última vez
+rm -rf /tmp/demo_dataset
+
+# Confirmar backup existe
+ls /tmp/demo_dataset_backup/000000/sample.json && echo "backup OK"
+
+# Confirmar notebook aberto com saídas visíveis
+# (só olhar no browser — não re-executar)
+
+# Deixar DUAS abas prontas no terminal:
+#   Aba 1: ~/layered_music_gen (venv ativa) — para o demo
+#   Aba 2: ~/layered_music_gen (venv ativa) — reserva
+```
+
+---
+
+## DEMO AO VIVO
+
+> **Contexto:** slide 12 na tela. Você abre um terminal novo.
+
+---
+
+### ABERTURA — "Zero a rodando" `[0:00 – 0:30]`
+
+> Abrir terminal limpo. Digitar devagar — audiência precisa ler.
+
+```bash
+# mostrar que é um repo real
+ls ~/layered_music_gen
+```
+
+```bash
+cd ~/layered_music_gen
+```
+
+```bash
+# isso é tudo que precisaria para começar do zero:
+# git clone https://github.com/dobidu/layered_music_gen.git
+# python3 -m venv .venv
+# pip install -e '.[dev]'
+# brew install fluidsynth
+# (fiz antes — leva ~2 min)
+
+source .venv/bin/activate
+```
+
+> **FALA:**  
+> "Três comandos — clone, venv, pip install. FluidSynth pelo brew.  
+> Fiz antes pra não perder tempo. Agora com o ambiente pronto:"
+
+---
+
+### PARTE A — Terminal `[0:30 – 1:30]`
+
+#### A1 — Listar gêneros `[~15s]`
 
 ```bash
 musicgen list-genres
 ```
 
 > **FALA:**  
-> "O musicgen vem com 8 gêneros embutidos — cada um define limites de tempo,  
-> swing, padrões de bateria e pesos de acordes. Vou gerar algumas amostras com jazz."
+> "Oito gêneros embutidos — cada um é um arquivo `spec.json` com limites de tempo,  
+> swing, pesos de acordes, padrões de bateria, perfil de FX.  
+> São composíveis — posso combinar qualquer subconjunto."
 
 ---
 
-### A2 — Gerar 3 amostras com gênero `[~30s]`
+#### A2 — Gerar com jazz `[~35s]`
 
 ```bash
 musicgen generate \
@@ -50,15 +187,16 @@ musicgen generate \
 ```
 
 > **FALA (enquanto gera):**  
-> "Seed 42, 3 amostras, gênero jazz. O pipeline completo: amostrador,  
-> geradores MIDI, FluidSynth, FX, anotador — tudo controlado pela GenreSpec do jazz."
+> "Semente 42, 3 amostras, gênero jazz. Pipeline completo:  
+> sampler constrangido pelo GenreSpec → geradores MIDI → FluidSynth →  
+> FX pedalboard → anotador → `sample.json` escrito por último."
 
-> **FALA (quando terminar):**  
-> "Pronto. Vamos ver o que foi criado."
+> **FALA (ao terminar):**  
+> "Pronto."
 
 ---
 
-### A3 — Inspecionar a saída `[~15s]`
+#### A3 — Inspecionar saída `[~10s]`
 
 ```bash
 ls /tmp/demo_dataset/000000/
@@ -68,76 +206,71 @@ ls /tmp/demo_dataset/000000/
 python3 -c "
 import json, pathlib
 d = json.loads(pathlib.Path('/tmp/demo_dataset/000000/sample.json').read_text())
-print(f\"tempo:      {d['tempo_bpm']} BPM\")
-print(f\"swing:      {d['swing']:.3f}\")
-print(f\"key:        {d['key']}\")
-print(f\"split:      {d['split']}\")
-print(f\"musicality: {d['musicality']['score']:.3f}\")
+print(f'tempo:      {d[\"tempo_bpm\"]} BPM   (jazz: 80–200)')
+print(f'swing:      {d[\"swing\"]:.3f}        (jazz: 0.60–0.75)')
+print(f'key:        {d[\"key\"]}')
+print(f'split:      {d[\"split\"]}')
+print(f'musicality: {d[\"musicality\"][\"score\"]:.3f}')
 "
 ```
 
 > **FALA:**  
-> "O `sample.json` foi escrito por último — é o sentinel de completude.  
-> Tempo dentro dos limites do jazz: 80–200 BPM. Swing entre 0.60 e 0.75.  
-> Split determinístico: 'train', 'valid' ou 'test' — sempre o mesmo para essa semente."
+> "`sample.json` escrito por último — sentinel de completude, usado para retomada.  
+> Tempo e swing dentro dos limites do jazz. Split determinístico da semente — sempre igual."
 
 ---
 
-## PARTE B — Notebook `[1:00 – 2:30]`
+### PARTE B — Notebook `[1:30 – 2:30]`
 
-> Alternar para o browser com o notebook já aberto e com saídas visíveis.
+> Alternar para o browser. Notebook já aberto com saídas visíveis.
 
 ---
 
-### B1 — Seção 5: geração com jazz `[~25s]`
+#### B1 — Seção 5: jazz puro `[~20s]`
 
-> Rolar até **`## 5. Genre generation — single genre`**, destacar a saída.
+> Rolar até `## 5. Genre generation — single genre`
 
 > **FALA:**  
-> "Aqui carregamos a GenreSpec do jazz diretamente — podemos ver os limites:  
-> tempo_min=80, tempo_max=200, swing entre 0.60 e 0.75.  
-> A amostra gerada respeita esses limites — vemos o assert passando."
+> "Carregamos a GenreSpec do jazz diretamente em Python —  
+> tempo_min=80, tempo_max=200, swing 0.60–0.75.  
+> A amostra gerada cai dentro dos limites — assert passa."
 
 ---
 
-### B2 — Seção 6: composição de gêneros `[~35s]`
+#### B2 — Seção 6: composição jazz + latin `[~30s]`
 
-> Rolar até **`## 6. Genre composition — jazz + latin`**, destacar a saída.
+> Rolar até `## 6. Genre composition — jazz + latin`
 
 > **FALA:**  
-> "Agora o mais interessante: composição de gêneros.  
-> Passamos `--genre jazz --genre latin` — o `merge_genres` calcula  
-> automaticamente a interseção dos intervalos hard e a média ponderada  
-> dos pesos soft."
+> "Composição de gêneros — o ponto central do v0.2.  
+> `merge_genres([jazz, latin])` calcula automaticamente:"
 
 > Apontar para os valores no output:
 
 > **FALA:**  
-> "O intervalo de tempo fundido é a interseção: se jazz é 80–200 e latin é 90–140,  
-> o resultado é 90–140. Nenhuma mudança de código nos geradores —  
-> a GenreSpec descida para o sampler resolve tudo."
+> "Intervalos *hard* — tempo e swing — viram interseção.  
+> Jazz é 80–200, latin é 90–140: fundido é 90–140.  
+> Pesos *soft* — time signature, escalas, tipos de acorde — viram média ponderada.  
+> Nenhuma mudança nos geradores. O GenreSpec desce o pipeline inteiro."
 
 ---
 
-### B3 — Seção 12: verificação de determinismo `[~30s]`
+#### B3 — Seção 12: determinismo `[~20s]`
 
-> Rolar até **`## 12. Determinism check`**, destacar a saída.
-
-> **FALA:**  
-> "Por fim, o contrato fundamental do musicgen.  
-> Mesma semente, duas execuções completamente independentes —  
-> SHA-256 idêntico no `sample.json`."
-
-> Apontar para o "PASS":
+> Rolar até `## 12. Determinism check`
 
 > **FALA:**  
-> "PASS. Não importa a máquina, não importa quando você roda —  
-> MIDI e metadados são bit a bit idênticos. Isso é o que torna  
-> o dataset reproduzível para a comunidade."
+> "Contrato fundamental. Mesma semente, dois runs independentes —"
+
+> Apontar para os dois hashes e o PASS:
+
+> **FALA:**  
+> "SHA-256 idêntico. MIDI e `sample.json` bit a bit iguais sempre.  
+> Não importa a máquina — M4 aqui, Ryzen em outro lab, CI na nuvem."
 
 ---
 
-## PARTE C — Encerramento `[2:30 – 3:00]`
+### PARTE C — Fechar `[2:30 – 3:00]`
 
 > Voltar ao terminal.
 
@@ -146,49 +279,64 @@ pytest -m "not slow" -q --tb=no 2>&1 | tail -2
 ```
 
 > **FALA:**  
-> "1046 testes, menos de 4 segundos — sem FluidSynth.  
-> O repositório está em github.com/dobidu/layered_music_gen, tag v0.2.0.  
+> "1046 testes em menos de 4 segundos — sem FluidSynth, sem sf2.  
+> Repositório: `github.com/dobidu/layered_music_gen`, tag `v0.2.0`.  
 > Obrigado — perguntas?"
 
 ---
 
 ## Mapa de tempo
 
-| Momento | Ação |
-|---|---|
-| `0:00` | `musicgen list-genres` |
-| `0:15` | `musicgen generate --genre jazz` |
-| `0:45` | `ls` + inspecionar `sample.json` |
-| `1:00` | Abrir notebook → seção 5 |
-| `1:25` | Seção 6 (composição jazz + latin) |
-| `2:00` | Seção 12 (determinismo, SHA-256) |
-| `2:30` | Terminal → pytest |
-| `2:50` | Encerrar + perguntas |
+| Relógio | Ação | Local |
+|---|---|---|
+| `0:00` | `ls ~/layered_music_gen` → `cd` → `source .venv/bin/activate` | Terminal |
+| `0:20` | Mostrar linha de clone (não executar) | Terminal |
+| `0:30` | `musicgen list-genres` | Terminal |
+| `0:45` | `musicgen generate --count 3 --seed 42 --genre jazz` | Terminal |
+| `1:20` | `ls 000000/` + python3 inspecionar sample.json | Terminal |
+| `1:30` | Seção 5 (jazz spec + assert) | Notebook |
+| `1:50` | Seção 6 (merge jazz + latin) | Notebook |
+| `2:20` | Seção 12 (SHA-256 PASS) | Notebook |
+| `2:30` | `pytest -m "not slow"` | Terminal |
+| `2:50` | Encerrar | — |
 
 ---
 
-## Plano B — se algo falhar
+## Plano B
 
-| Problema | Solução |
+| Problema | Ação imediata |
 |---|---|
-| FluidSynth trava / demora | `Ctrl+C` → mostrar dataset pré-gerado em `/tmp/demo_dataset_backup/` (gerar antes da palestra) |
-| Notebook não abre | Mostrar células como texto no terminal: `cat notebooks/musicgen_demo.ipynb \| python3 -c "import sys,json; [print(c['source']) for c in json.load(sys.stdin)['cells'] if 'genre' in ''.join(c['source'])]"` |
-| pytest falha | Mostrar o JSON de resultados de benchmark: `cat benchmarks/results/*.json \| python3 -m json.tool \| head -40` |
-| Erro na geração | Usar `--output-mode midi-only` (pula síntese FluidSynth): `musicgen generate --count 1 --seed 42 --out /tmp/demo_midi --genre jazz --output-mode midi-only` |
+| `generate` demora mais que 40s | `Ctrl+C` → `ls /tmp/demo_dataset_backup/000000/` → seguir script normalmente com o backup |
+| FluidSynth erro / crash | `musicgen generate --count 1 --seed 42 --out /tmp/d --genre jazz --output-mode midi-only` (sem síntese) → mostra MIDI + sample.json |
+| Notebook não carrega | No terminal: `python3 -c "from musicgen.genre import load_genre, merge_genres; j=load_genre('jazz','genres'); l=load_genre('latin','genres'); m=merge_genres([j,l]); print(f'merged tempo: [{m.tempo_min}, {m.tempo_max}]')"` |
+| `pytest` falha | `cat benchmarks/results/*.json \| python3 -m json.tool \| grep -E '"mean_ms"|"n"'` — mostra números do benchmark |
+| Sem internet (clone) | `ls ~/layered_music_gen` + `git log --oneline -3` — prova que o repo é real |
 
 ---
 
-## Checklist final (30 min antes)
+## Checklist — 30 min antes
 
 ```
-□ venv ativa: which python → .venv/bin/python
-□ musicgen instalado: musicgen --version
-□ FluidSynth: fluidsynth --version
-□ sf2 presentes: ls sf/beat/ sf/melody/ sf/harmony/ sf/bassline/
-□ /tmp/demo_dataset limpo: rm -rf /tmp/demo_dataset
-□ /tmp/demo_dataset_backup/ gerado (plano B)
-□ Notebook aberto, células 5/6/12 pré-executadas com saída visível
-□ Fonte do terminal ≥ 18pt
-□ pytest passando: pytest -m "not slow" -q --tb=no | tail -1
-□ Benchmark rodado: benchmarks/results/ tem JSON desta máquina
+□ Mac M4 na tomada / bateria cheia
+□ Modo Não Perturbe ativado
+□ Terminal aberto em ~/layered_music_gen, fonte ≥ 18pt, fundo escuro
+□ venv ativa: which python → .../layered_music_gen/.venv/bin/python
+□ musicgen --version → 0.2.0
+□ fluidsynth --version → qualquer versão
+□ sf2 confirmados: ls sf/beat/ sf/melody/ sf/harmony/ sf/bassline/
+□ /tmp/demo_dataset removido: rm -rf /tmp/demo_dataset
+□ /tmp/demo_dataset_backup/000000/sample.json existe
+□ Notebook aberto no browser, células 5/6/12 com saída visível (não re-executar)
+□ pytest OK: pytest -m "not slow" -q --tb=no | tail -1 → "1046 passed"
+□ Ensaio completo cronometrado (alvo: < 2m45s para sobrar margem)
 ```
+
+---
+
+## Notas para ensaio
+
+- **Falar devagar** ao digitar — audiência lê mais devagar que você digita
+- **Não esperar silêncio** durante o `generate` — falar o pipeline enquanto roda
+- **Seção 6 é o pico** — dar tempo para a audiência ler os valores de interseção antes de explicar
+- Se sobrar tempo: na seção 12, rolar para cima e mostrar o código (`sha256_file`) antes de mostrar o resultado
+- Alvo real: terminar em **2m40s** — 20s de buffer para perguntas durante o demo
