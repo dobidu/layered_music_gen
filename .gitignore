@@ -168,3 +168,4 @@ cython_debug/
 benchmarks/results/
 benchmarks/figures/
 presentation_prompts.txt
+HANDOFF_MAC.md
