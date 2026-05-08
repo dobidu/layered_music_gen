@@ -32,13 +32,32 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from midi2audio import FluidSynth
 from pydub import AudioSegment
 
 import config
 from musicgen.genre import GenreSpec
 
 logger = logging.getLogger(__name__)
+
+
+# ---------- _fluidsynth_render (FluidSynth 2.4+ compatible) ----------
+
+def _fluidsynth_render(sf_path: str, midi_path: str, wav_path: str, sample_rate: int = 44100) -> None:
+    """Render MIDI to WAV via FluidSynth subprocess.
+
+    Flags (-F, -r) MUST precede the soundfont and MIDI file arguments;
+    FluidSynth ≥ 2.4 rejects them when placed after the positional args
+    (midi2audio uses the old order which breaks on 2.4+).
+    """
+    result = subprocess.run(
+        ["fluidsynth", "-ni", "-F", wav_path, "-r", str(sample_rate), sf_path, midi_path],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        logger.warning(
+            "FluidSynth exited %d for %s: %s",
+            result.returncode, midi_path, result.stderr[:200],
+        )
 
 
 # ---------- FLUIDSYNTH_VERSION (D-07) ----------
@@ -257,7 +276,7 @@ def render_stems(
 
     def _render_one(layer: str) -> tuple[str, str]:
         wav_path = os.path.join(out_dir, f"{layer}.wav")
-        FluidSynth(soundfonts[layer]).midi_to_audio(midi_paths[layer], wav_path)
+        _fluidsynth_render(soundfonts[layer], midi_paths[layer], wav_path)
         return layer, wav_path
 
     stem_paths: Dict[str, str] = {}

@@ -97,7 +97,7 @@ cd ~/layered_music_gen && source .venv/bin/activate
 musicgen --version                               # deve retornar 0.2.0
 musicgen list-genres                             # deve listar 8 gêneros
 fluidsynth --version                             # deve retornar versão
-pytest -m "not slow" -q --tb=no | tail -2       # deve mostrar 1046 passed
+pytest -m "not slow" -q --tb=no | tail -2       # deve mostrar 1047 passed
 ```
 
 ---
@@ -327,7 +327,7 @@ pytest -m "not slow" -q --tb=no 2>&1 | tail -2
 □ /tmp/demo_dataset removido: rm -rf /tmp/demo_dataset
 □ /tmp/demo_dataset_backup/000000/sample.json existe
 □ Notebook aberto no browser, células 5/6/12 com saída visível (não re-executar)
-□ pytest OK: pytest -m "not slow" -q --tb=no | tail -1 → "1046 passed"
+□ pytest OK: pytest -m "not slow" -q --tb=no | tail -1 → "1047 passed"
 □ Ensaio completo cronometrado (alvo: < 2m45s para sobrar margem)
 ```
 

@@ -140,16 +140,16 @@ def _make_fake_wav(path: str, duration_ms: int = 1000, sample_rate: int = 44100)
 
 @pytest.fixture
 def mock_fluidsynth(tmp_path):
-    """Patch FluidSynth.midi_to_audio so it writes a fake stereo-44.1kHz WAV
+    """Patch _fluidsynth_render so it writes a fake stereo-44.1kHz WAV
     instead of calling the real subprocess.
     """
     call_counter = {"n": 0}
 
-    def _fake_render(self, midi_path, wav_path):
+    def _fake_render(sf_path, midi_path, wav_path, sample_rate=44100):
         call_counter["n"] += 1
         _make_fake_wav(wav_path)
 
-    with patch("musicgen.renderer.FluidSynth.midi_to_audio", _fake_render):
+    with patch("musicgen.renderer._fluidsynth_render", _fake_render):
         yield call_counter
 
 

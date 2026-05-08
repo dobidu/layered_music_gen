@@ -153,7 +153,7 @@ python benchmarks/plot.py paper/m4.json    --out paper/figures/m4/
     "batch_workers_4":  { ... },
     "batch_workers_12": { ... },
     "memory_single_mocked": { "baseline_mb": 142, "after_mb": 143, "delta_mb": 1 },
-    "test_suite_fast": { "mean_ms": 3800, "test_count": 1046, "exit_code": 0 }
+    "test_suite_fast": { "mean_ms": 3800, "test_count": 1047, "exit_code": 0 }
   }
 }
 ```
@@ -231,7 +231,7 @@ For FluidSynth memory, monitor with:
 
 Field: `test_suite_fast.test_count`, `test_suite_fast.mean_ms`
 
-> "The fast test suite (N=1046 unit tests) completes in X.X s on [platform], enabling rapid iteration without FluidSynth."
+> "The fast test suite (N=1047 unit tests) completes in X.X s on [platform], enabling rapid iteration without FluidSynth."
 
 ---
 
