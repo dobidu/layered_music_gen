@@ -90,6 +90,10 @@ class Config:
     genre: Optional[List[str]] = None               # list of genre names to compose
     genres_dir: str = DEFAULT_GENRES_DIR            # root dir for genre spec files
 
+    # --- quality-gate regeneration loop (v0.3 Phase 3b) ---
+    min_musicality_score: float = 0.0   # 0.0 = disabled; re-roll when score < threshold
+    max_attempts: int = 1               # 1 = no re-roll; max pipeline invocations per sample
+
     _VALID_OUTPUT_MODES = frozenset({"full", "mix-only", "stems-only", "midi-only"})
 
     def __post_init__(self):
@@ -110,6 +114,8 @@ class Config:
             )
         if self.count < 1:
             raise ValueError(f"count must be >= 1, got {self.count}")
+        if self.max_attempts < 1:
+            raise ValueError(f"max_attempts must be >= 1, got {self.max_attempts}")
 
     def sf_layer_dir(self, layer: str) -> str:
         """Return the on-disk directory for a single soundfont layer."""
@@ -169,6 +175,18 @@ class Config:
         genres_dir_env = os.environ.get("MUSICGEN_GENRES_DIR")
         if genres_dir_env:
             cfg.genres_dir = os.path.abspath(genres_dir_env)
+        min_score_env = os.environ.get("MUSICGEN_MIN_MUSICALITY_SCORE")
+        if min_score_env:
+            try:
+                cfg.min_musicality_score = float(min_score_env)
+            except ValueError:
+                logger.warning("MUSICGEN_MIN_MUSICALITY_SCORE is not a float: %r", min_score_env)
+        max_att_env = os.environ.get("MUSICGEN_MAX_ATTEMPTS")
+        if max_att_env:
+            try:
+                cfg.max_attempts = int(max_att_env)
+            except ValueError:
+                logger.warning("MUSICGEN_MAX_ATTEMPTS is not an integer: %r", max_att_env)
 
         # cli layer (D-02 top layer; framework-agnostic — avoids typer dep in Phase 2)
         if cli_overrides:

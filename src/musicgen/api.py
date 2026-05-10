@@ -29,7 +29,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from config import Config  # Re-exported from musicgen.__init__
 
@@ -89,9 +89,10 @@ except importlib.metadata.PackageNotFoundError:
 class SampleResult:
     """Result of a single ``generate(config)`` call (D-02).
 
-    Produced by :func:`generate`. Eleven fields; all absolute paths.
+    Produced by :func:`generate`. Twelve fields; all absolute paths.
     ``status`` is ``"ok"`` on success, ``"failed"`` on any pipeline
     exception (including sum-of-stems assertion failure).
+    ``attempt`` is 1-based: which quality-gate attempt produced this result.
     """
     sample_index: int
     seed: int
@@ -104,6 +105,7 @@ class SampleResult:
     status: str
     musicality_score: float
     duration_seconds: float
+    attempt: int = 1
 
 
 def generate(config: Config, *, manifest_writer=None) -> SampleResult:
@@ -163,9 +165,33 @@ def generate(config: Config, *, manifest_writer=None) -> SampleResult:
     logger.debug("Sample %d working dir: %s", config.sample_index, working_dir)
 
     try:
-        result = _run_pipeline(
-            config, sample_seed, rngs, working_dir, manifest_writer,
-        )
+        min_score = config.min_musicality_score
+        max_att = config.max_attempts
+        result = None
+
+        for attempt in range(1, max_att + 1):
+            attempt_seed = sample_seed + (attempt - 1)
+            attempt_rngs = make_rngs(attempt_seed)
+            result = _run_pipeline(
+                config, attempt_seed, attempt_rngs, working_dir, attempt,
+            )
+            if result.musicality_score >= min_score or attempt == max_att:
+                break
+
+        # Write manifest once for the winning attempt.
+        rel_path = f"{config.sample_index:06d}/sample.json"
+        manifest_writer.append({
+            "sample_index": config.sample_index,
+            "seed": config.global_seed,
+            "sample_seed": result.seed,
+            "status": result.status,
+            "split": result.split,
+            "path": rel_path if result.status == "ok" else "",
+            "musicality_score": result.musicality_score,
+            "duration_seconds": result.duration_seconds,
+            "attempt": result.attempt,
+            "wrote_at": datetime.now(timezone.utc).isoformat(),
+        })
         return result
     except Exception as exc:  # noqa: BLE001 — intentional broad catch per D-24
         logger.exception(
@@ -197,6 +223,7 @@ def generate(config: Config, *, manifest_writer=None) -> SampleResult:
                 "path": "",
                 "musicality_score": 0.0,
                 "duration_seconds": 0.0,
+                "attempt": 1,
                 "error": repr(exc)[:2048],  # D-13 2KB cap
             })
         except Exception as manifest_exc:  # noqa: BLE001
@@ -211,12 +238,12 @@ def generate(config: Config, *, manifest_writer=None) -> SampleResult:
 
 def _run_pipeline(
     config: Config,
-    sample_seed: int,
+    attempt_seed: int,
     rngs: Dict[str, random.Random],
     working_dir: str,
-    manifest_writer: ManifestWriter,
+    attempt: int = 1,
 ) -> SampleResult:
-    """The actual pipeline. Called from generate() inside try/except."""
+    """Run the full pipeline for one attempt. Called from generate() loop."""
     _cfg = config
 
     # Sample parameters from rngs[RNG_PARAMS] (D-19 — sampler calls).
@@ -321,7 +348,7 @@ def _run_pipeline(
     }
 
     # Split assignment (D-26 / R-P6).
-    split = assign_split(sample_seed, _cfg.split_ratios)
+    split = assign_split(attempt_seed, _cfg.split_ratios)
 
     # Build SongParams for annotator.
     song_params_obj = SongParams(
@@ -349,7 +376,7 @@ def _run_pipeline(
         musicality=musicality_dict, chord_progressions=chord_progressions,
         midi_paths=midi_paths_by_part, mix_path=final_wav,
         fluidsynth_version=renderer.FLUIDSYNTH_VERSION,
-        seed=sample_seed,
+        seed=attempt_seed,
         musicgen_version=MUSICGEN_VERSION,
         split=split,
         pre_roll_offset_seconds=pre_roll_offset_s,
@@ -367,24 +394,10 @@ def _run_pipeline(
         pre_roll_offset_s=pre_roll_offset_s,
     )
 
-    # Manifest append (D-13).
-    rel_path = f"{config.sample_index:06d}/sample.json"
     duration_seconds = sum(part_durations_s)
-    manifest_writer.append({
-        "sample_index": config.sample_index,
-        "seed": config.global_seed,
-        "sample_seed": sample_seed,
-        "status": "ok",
-        "split": split,
-        "path": rel_path,
-        "musicality_score": float(score),
-        "duration_seconds": duration_seconds,
-        "wrote_at": datetime.now(timezone.utc).isoformat(),
-    })
-
     return SampleResult(
         sample_index=config.sample_index,
-        seed=sample_seed,
+        seed=attempt_seed,
         sample_dir=paths["sample_dir"],
         sample_json_path=paths["sample_json"],
         mix_path=paths.get("mix", ""),
@@ -394,6 +407,7 @@ def _run_pipeline(
         status="ok",
         musicality_score=float(score),
         duration_seconds=duration_seconds,
+        attempt=attempt,
     )
 
 
