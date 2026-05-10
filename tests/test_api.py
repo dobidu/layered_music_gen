@@ -127,14 +127,14 @@ class TestApiFast:
         assert result.seed != 42  # NOT the global seed
 
     def test_sample_result_shape(self):
-        """D-02: SampleResult has the 11 documented fields, all frozen."""
+        """D-02: SampleResult has the 12 documented fields, all frozen."""
         from musicgen import SampleResult
         import dataclasses
         fields = {f.name for f in dataclasses.fields(SampleResult)}
         assert fields == {
             "sample_index", "seed", "sample_dir", "sample_json_path",
             "mix_path", "stem_paths", "midi_paths", "split", "status",
-            "musicality_score", "duration_seconds",
+            "musicality_score", "duration_seconds", "attempt",
         }
 
     def test_public_exports(self):
