@@ -148,6 +148,47 @@ def _pick_chord_type(
     return rng.choices(population, weights=w_values, k=1)[0]
 
 
+def _sample_chord_markov(
+    history: List[str],
+    matrix: Dict,
+    rng: random.Random,
+) -> str:
+    """Sample next chord from a Markov transition matrix.
+
+    Boundary handling:
+    - step 0 (empty history): draw from init_probs
+    - step 1 (1 chord in history): look up single-chord key; fallback to uniform over init_probs
+    - step ≥ 2: look up "prev,curr" key (2nd-order); fallback to single-chord key (1st-order);
+      fallback to uniform over init_probs
+
+    matrix dict keys: "order", "init_probs", "transitions"
+    """
+    transitions: Dict[str, Dict[str, float]] = matrix.get("transitions", {})
+    init_probs: Dict[str, float] = matrix.get("init_probs", {})
+
+    def _draw(dist: Dict[str, float]) -> str:
+        dist = {k: v for k, v in dist.items() if v > 0}
+        if not dist:
+            dist = {k: 1.0 for k in init_probs} if init_probs else {"I": 1.0}
+        population = list(dist)
+        return rng.choices(population, weights=[dist[k] for k in population], k=1)[0]
+
+    if not history:
+        return _draw(init_probs)
+
+    curr = history[-1]
+    if len(history) >= 2:
+        prev = history[-2]
+        key_2nd = f"{prev},{curr}"
+        if key_2nd in transitions:
+            return _draw(transitions[key_2nd])
+
+    if curr in transitions:
+        return _draw(transitions[curr])
+
+    return _draw(init_probs)
+
+
 def _pick_inversion(rng: random.Random, genre_spec) -> str:
     """Pick an inversion name. Defaults to 'root' when no genre spec."""
     if genre_spec is None or not genre_spec.inversion_weights:
@@ -180,6 +221,10 @@ def generate_chord_progression(
     genre_spec: optional GenreSpec — when supplied, chord type and inversion
     are drawn per-chord according to genre constraints. When None, behavior is
     identical to pre-v0.2 (backward compat).
+
+    v0.3 Phase 1: if genre_spec.chord_transition_matrix is set, the chord
+    sequence is generated via a Markov chain instead of the pattern file.
+    The pattern list returned is one chord per measure (len == measures).
     """
     validator = DurationValidator()
     mf = MIDIFile(1)
@@ -193,25 +238,6 @@ def generate_chord_progression(
     midi_denominator = spec.midi_denominator_power
     mf.addTimeSignature(track, time, numerator, midi_denominator, 24, 8)
 
-    # Reads and validates chord patterns
-    chord_patterns = {}
-    with open(pattern_file, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if ":" not in line:
-                continue
-            part_name, pattern = line.split(":", 1)
-            pattern_chords = pattern.split(",")
-            if spec.verify_chord_pattern_length(len(pattern_chords)):
-                chord_patterns.setdefault(part_name, []).append(pattern_chords)
-
-    if part not in chord_patterns or not chord_patterns[part]:
-        base_pattern = ["I"] if numerator in [2, 3] else ["I", "IV", "V", "vi"]
-        chord_patterns[part] = [base_pattern]
-
-    chord_pattern = rng.choice(chord_patterns[part])
     base_duration = validator.get_suggested_duration(time_signature, "chord")
     chord_duration = validator.get_valid_duration(
         base_duration,
@@ -219,32 +245,65 @@ def generate_chord_progression(
         validator._analyze_time_signature(time_signature).beats_per_measure,
         "chord",
     )
-
     if chord_duration <= 0:
         raise ValueError(
             f"Invalid chord duration calculated for time signature {time_signature}"
         )
 
-    # music21 global-random audit (Phase 3, D-23): music21 9.9.1 roman.RomanNumeral,
-    # scale.MajorScale/MinorScale, pitch.Pitch do NOT mutate random.getstate().
-    # Verified 2026-04-18. If this changes, tests/test_music21_isolation.py fails.
-    #
-    # Backward compat (genre_spec=None): use music21 pitches directly — zero new
-    # RNG draws, bit-identical to pre-v0.2 output (preserves determinism goldens).
-    # Genre path: _pick_chord_type + _pick_inversion consume RNG draws per chord.
-    current_time = 0
-    for _ in range(measures):
-        for symbol in chord_pattern:
-            if genre_spec is None:
-                chord = roman.RomanNumeral(symbol.strip(), key)
-                notes = [p.midi for p in chord.pitches]
-            else:
-                chord_type = _pick_chord_type(rng, symbol, genre_spec)
-                inversion = _pick_inversion(rng, genre_spec)
-                notes = _build_chord_voicing(symbol.strip(), chord_type, inversion, key)
+    # Markov path: genre_spec has a chord_transition_matrix — generate one
+    # chord per measure via Markov sampling; skip pattern file entirely.
+    matrix = getattr(genre_spec, "chord_transition_matrix", None) if genre_spec is not None else None
+    if matrix is not None:
+        chord_pattern: List[str] = []
+        for _ in range(measures):
+            chord_symbol = _sample_chord_markov(chord_pattern, matrix, rng)
+            chord_pattern.append(chord_symbol)
+            chord_type = _pick_chord_type(rng, chord_symbol, genre_spec)
+            inversion = _pick_inversion(rng, genre_spec)
+            notes = _build_chord_voicing(chord_symbol.strip(), chord_type, inversion, key)
             for note in notes:
-                mf.addNote(track, 0, note, current_time, chord_duration, 100)
-            current_time += chord_duration
+                mf.addNote(track, 0, note, len(chord_pattern) - 1, chord_duration, 100)
+        current_time = measures * chord_duration
+    else:
+        # Pattern-file path (pre-v0.3 behavior).
+        chord_patterns: Dict[str, List] = {}
+        with open(pattern_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if ":" not in line:
+                    continue
+                part_name, pattern = line.split(":", 1)
+                pattern_chords = pattern.split(",")
+                if spec.verify_chord_pattern_length(len(pattern_chords)):
+                    chord_patterns.setdefault(part_name, []).append(pattern_chords)
+
+        if part not in chord_patterns or not chord_patterns[part]:
+            base_pattern = ["I"] if numerator in [2, 3] else ["I", "IV", "V", "vi"]
+            chord_patterns[part] = [base_pattern]
+
+        chord_pattern = rng.choice(chord_patterns[part])
+        # music21 global-random audit (Phase 3, D-23): music21 9.9.1 roman.RomanNumeral,
+        # scale.MajorScale/MinorScale, pitch.Pitch do NOT mutate random.getstate().
+        # Verified 2026-04-18. If this changes, tests/test_music21_isolation.py fails.
+        #
+        # Backward compat (genre_spec=None): use music21 pitches directly — zero new
+        # RNG draws, bit-identical to pre-v0.2 output (preserves determinism goldens).
+        # Genre path: _pick_chord_type + _pick_inversion consume RNG draws per chord.
+        current_time = 0
+        for _ in range(measures):
+            for symbol in chord_pattern:
+                if genre_spec is None:
+                    chord = roman.RomanNumeral(symbol.strip(), key)
+                    notes = [p.midi for p in chord.pitches]
+                else:
+                    chord_type = _pick_chord_type(rng, symbol, genre_spec)
+                    inversion = _pick_inversion(rng, genre_spec)
+                    notes = _build_chord_voicing(symbol.strip(), chord_type, inversion, key)
+                for note in notes:
+                    mf.addNote(track, 0, note, current_time, chord_duration, 100)
+                current_time += chord_duration
 
     directory = name.split("-")[0]
     if not os.path.exists(directory):
