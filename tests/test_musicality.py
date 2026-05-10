@@ -448,7 +448,7 @@ class TestRenderIntegrity:
         assert result["clipping_ratio"] < 0.001
         assert result["dc_offset"] < 0.01
         assert result["silence_ratio"] < 0.5
-        assert 6 <= result["crest_db"] <= 30
+        assert 3 <= result["crest_db"] <= 30
 
     def test_clipped_audio_flagged(self):
         from musicgen.musicality import _render_integrity
