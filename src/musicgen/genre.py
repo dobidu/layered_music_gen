@@ -57,6 +57,11 @@ class GenreSpec:
     # None = use chord_patterns.txt (backward compat).
     chord_transition_matrix: Optional[Dict[str, Any]] = None
 
+    # Markov melody transition matrix (v0.3 Phase 2).
+    # Same format but keys are scale degrees "1"–"7"; key-agnostic.
+    # None = use existing chord-pitch-based Markov (backward compat).
+    melody_transition_matrix: Optional[Dict[str, Any]] = None
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -117,6 +122,10 @@ def load_genre(name: str, genres_dir: str) -> GenreSpec:
     if os.path.isfile(transitions_path):
         with open(transitions_path) as f:
             known["chord_transition_matrix"] = json.load(f)
+    melody_path = os.path.join(genres_dir, name, "melody_transitions.json")
+    if os.path.isfile(melody_path):
+        with open(melody_path) as f:
+            known["melody_transition_matrix"] = json.load(f)
     return GenreSpec(**known)
 
 
@@ -196,7 +205,8 @@ def merge_genres(
         fx_profile=fx_profile,
         soundfont_tags=soundfont_tags,
         drum_pool_names=drum_pool_names,
-        chord_transition_matrix=None,  # matrices not merged; fallback to pattern file
+        chord_transition_matrix=None,   # matrices not merged; fallback to pattern file
+        melody_transition_matrix=None,  # matrices not merged; fallback to existing Markov
     )
 
 
