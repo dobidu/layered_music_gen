@@ -1,26 +1,35 @@
-"""FluidSynth pre-roll calibration (R-P9, D-50..D-54).
+"""Calibration module — FluidSynth pre-roll + musicality harness (v0.3 Phase 3c).
 
-FluidSynth inserts a short silence before the first rendered note — the
-"pre-roll" — that shifts all MIDI-anchored beat times forward. This module
-measures the offset once, caches it in ``.musicgen/fluidsynth_preroll.json``,
-and returns it for use in writer._apply_preroll_offset.
+Pre-roll (R-P9, D-50..D-54):
+  Measures and caches the FluidSynth silence offset before first note.
 
-The cache is version-gated: if the installed FluidSynth binary changes, the
-cached value is stale and the module re-measures automatically.
+Musicality calibration harness (v0.3 Phase 3c):
+  Generates reference-good and adversarial MIDI sets, scores them with
+  check_midi_quality, and derives an empirical min_musicality_score threshold.
 
 Public surface:
   load_preroll(project_root) -> float
   measure_preroll(project_root) -> float
   measure_and_save_preroll(project_root) -> float
   save_preroll(project_root, offset_s) -> None
+
+  CalibrationResult              — dataclass
+  run_midi_calibration(...)      -> CalibrationResult
+  suggest_threshold(good, bad)   -> float
+  save_calibration(result, path) -> None
+  load_calibration(path)         -> CalibrationResult
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
+import random
+import struct
 import tempfile
-from typing import Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 import mido
 import numpy as np
@@ -199,3 +208,210 @@ def _find_any_soundfont(project_root: str) -> Optional[str]:
             if fname.endswith(".sf2"):
                 return os.path.join(root, fname)
     return None
+
+
+# ---------------------------------------------------------------------------
+# Musicality calibration harness (v0.3 Phase 3c)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CalibrationResult:
+    """Result of a MIDI-level musicality calibration run."""
+    good_scores: List[float]
+    bad_scores: List[float]
+    suggested_threshold: float
+    separation_ok: bool
+    good_mean: float
+    bad_mean: float
+
+
+# --- Minimal MIDI writer (no external deps beyond struct) -------------------
+
+def _var_len(n: int) -> bytes:
+    result = [n & 0x7F]
+    n >>= 7
+    while n:
+        result.insert(0, (n & 0x7F) | 0x80)
+        n >>= 7
+    return bytes(result)
+
+
+def _midi_bytes(
+    notes: List[tuple],  # (pitch, start_tick, dur_tick, velocity)
+    tempo_bpm: int = 120,
+    ticks_per_beat: int = 480,
+) -> bytes:
+    us = int(60_000_000 / tempo_bpm)
+    events = [(0, bytes([0xFF, 0x51, 0x03]) + us.to_bytes(3, "big"))]
+    for pitch, start, dur, vel in notes:
+        events.append((start, bytes([0x90, pitch, vel])))
+        events.append((start + dur, bytes([0x80, pitch, 0x00])))
+    events.append((ticks_per_beat * 4, bytes([0xFF, 0x2F, 0x00])))
+    events.sort(key=lambda e: e[0])
+    track_bytes = b""
+    prev = 0
+    for tick, msg in events:
+        delta = tick - prev
+        prev = tick
+        track_bytes += _var_len(delta) + msg
+    header = struct.pack(">4sIHHH", b"MThd", 6, 0, 1, ticks_per_beat)
+    track = struct.pack(">4sI", b"MTrk", len(track_bytes)) + track_bytes
+    return header + track
+
+
+def _write_midi(path: str, notes: list, tempo_bpm: int = 120) -> None:
+    from pathlib import Path
+    Path(path).write_bytes(_midi_bytes(notes, tempo_bpm))
+
+
+# --- Reference set builders -------------------------------------------------
+
+_C_MAJOR_SCALE = [60, 62, 64, 65, 67, 69, 71, 72]  # C4..C5
+
+
+def _good_melody_notes(rng: random.Random, n_notes: int = 16) -> list:
+    """Step-wise C-major melody, varied pitches, one-octave range."""
+    scale = _C_MAJOR_SCALE
+    notes = []
+    for i in range(n_notes):
+        pitch = scale[i % len(scale)]
+        start = i * 240
+        notes.append((pitch, start, 200, rng.randint(70, 100)))
+    return notes
+
+
+def _bad_melody_notes(rng: random.Random, variant: int) -> list:
+    """Adversarial melody variants:
+      0 = empty (0 notes)
+      1 = stuck note (15/16 same pitch)
+      2 = extreme range (4-octave span)
+      3 = chromatic noise (random semitones, no key)
+    """
+    if variant == 0:
+        return []
+    if variant == 1:
+        notes = [(60, i * 240, 200, 80) for i in range(15)]
+        notes.append((62, 15 * 240, 200, 80))
+        return notes
+    if variant == 2:
+        return [(36, 0, 200, 80), (84, 240, 200, 80)] * 8
+    # variant 3+: chromatic noise
+    return [(rng.randint(36, 96), i * 240, 200, 80) for i in range(16)]
+
+
+def _write_sample_midi_paths(
+    base_dir: str, index: int, melody_notes: list, rng: random.Random
+) -> Dict[str, str]:
+    """Write 4-layer MIDI for one calibration sample. Returns paths dict."""
+    os.makedirs(base_dir, exist_ok=True)
+    good_filler = [(60 + i % 5, i * 240, 200, 80) for i in range(16)]
+    paths = {}
+    for layer in ("beat", "harmony", "bassline"):
+        p = os.path.join(base_dir, f"{index:04d}-{layer}.mid")
+        _write_midi(p, good_filler)
+        paths[layer] = p
+    mel_p = os.path.join(base_dir, f"{index:04d}-melody.mid")
+    _write_midi(mel_p, melody_notes)
+    paths["melody"] = mel_p
+    return paths
+
+
+# --- Core calibration functions ---------------------------------------------
+
+def suggest_threshold(good_scores: List[float], bad_scores: List[float]) -> float:
+    """Derive threshold that separates good from bad score distributions.
+
+    When clearly separated: midpoint between p90(bad) and p10(good).
+    When overlapping: p25(good) as a conservative threshold.
+    Returns 0.5 when either list is empty.
+    """
+    import numpy as np
+    if not good_scores or not bad_scores:
+        return 0.5
+    good_low = float(np.percentile(good_scores, 10))
+    bad_high = float(np.percentile(bad_scores, 90))
+    if good_low > bad_high:
+        return float((good_low + bad_high) / 2.0)
+    return float(np.clip(np.percentile(good_scores, 25), 0.0, 1.0))
+
+
+def run_midi_calibration(
+    n_good: int = 20,
+    n_bad: int = 20,
+    seed: int = 42,
+    tmp_dir: Optional[str] = None,
+) -> CalibrationResult:
+    """Generate reference-good and adversarial MIDI sets; score with check_midi_quality.
+
+    Args:
+        n_good: Number of reference-good samples to generate.
+        n_bad:  Number of adversarial samples to generate.
+        seed:   RNG seed for determinism.
+        tmp_dir: Directory for temp MIDI files. Uses tempfile.mkdtemp if None.
+
+    Returns:
+        CalibrationResult with scores, threshold, and separation flag.
+    """
+    import numpy as np
+    from musicgen.musicality import check_midi_quality
+
+    rng = random.Random(seed)
+    n_variants = 4  # number of bad variants (0=empty, 1=stuck, 2=extreme, 3=chromatic)
+
+    cleanup = tmp_dir is None
+    if tmp_dir is None:
+        tmp_dir = tempfile.mkdtemp(prefix="musicgen-calib-")
+    good_dir = os.path.join(tmp_dir, "good")
+    bad_dir = os.path.join(tmp_dir, "bad")
+
+    try:
+        good_scores: List[float] = []
+        for i in range(n_good):
+            notes = _good_melody_notes(rng)
+            paths = _write_sample_midi_paths(good_dir, i, notes, rng)
+            result = check_midi_quality(midi_paths=paths, key="C")
+            good_scores.append(result.score)
+
+        bad_scores: List[float] = []
+        for i in range(n_bad):
+            variant = i % n_variants
+            notes = _bad_melody_notes(rng, variant)
+            paths = _write_sample_midi_paths(bad_dir, i, notes, rng)
+            result = check_midi_quality(midi_paths=paths, key="C")
+            bad_scores.append(result.score)
+
+    finally:
+        if cleanup:
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    good_mean = float(np.mean(good_scores)) if good_scores else 0.0
+    bad_mean = float(np.mean(bad_scores)) if bad_scores else 0.0
+    threshold = suggest_threshold(good_scores, bad_scores)
+
+    separation_margin = 0.2
+    separation_ok = (good_mean - bad_mean) >= separation_margin
+
+    return CalibrationResult(
+        good_scores=good_scores,
+        bad_scores=bad_scores,
+        suggested_threshold=threshold,
+        separation_ok=separation_ok,
+        good_mean=good_mean,
+        bad_mean=bad_mean,
+    )
+
+
+def save_calibration(result: CalibrationResult, path: str) -> None:
+    """Persist CalibrationResult to a JSON file."""
+    data = dataclasses.asdict(result)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+    logger.debug("Calibration saved to %s", path)
+
+
+def load_calibration(path: str) -> CalibrationResult:
+    """Load CalibrationResult from a JSON file."""
+    with open(path, "r") as f:
+        data = json.load(f)
+    return CalibrationResult(**data)

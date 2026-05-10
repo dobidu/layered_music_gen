@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.2
-milestone_name: Extend — Genre System
-status: IN PROGRESS — v0.2 genre system 8/8 phases COMPLETE (2026-05-07)
-last_updated: "2026-05-07T00:00:00Z"
+milestone: v0.3
+milestone_name: Research — Higher-Order Markov
+status: IN PROGRESS — v0.3 all 3 phases COMPLETE (2026-05-10)
+last_updated: "2026-05-10T00:00:00Z"
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 31
-  completed_plans: 31
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -97,25 +97,18 @@ See: `.planning/PROJECT.md` (updated 2026-04-08)
 
 ## Next steps
 
-**v0.2 genre system COMPLETE** (branch `feat/genre-system`, 2026-05-07):
-1. ✓ GenreSpec + composition engine (`genre.py`, merge algebra)
-2. ✓ Chord vocabulary expansion (7th/9th/sus/dim7/maj7/m7b5 + inversions, genre-constrained)
-3. ✓ Drum pattern reorganization (`genres/<name>/patterns_<sig>.txt`, loader union)
-4. ✓ Sampler + FX genre integration (tempo/swing hard bounds, scale/time-sig soft weights)
-5. ✓ Soundfont genre integration (genre tags replace static `_LAYER_TAGS`)
-6. ✓ Built-in genre presets (jazz, hip-hop, blues, pop, electronic, latin, reggae, classical)
-7. ✓ Docs + CLI (`--genre jazz`, `--list-genres`, genres/README.md, README Genre system section)
-8. ✓ Jupyter notebook (`notebooks/musicgen_demo.ipynb`, 12 sections)
+**v0.3 higher-order Markov COMPLETE** (branch `feat/higher-order-markov`, 2026-05-10):
+1. ✓ Phase 1 — Chord 2nd-order Markov (`chord_transition_matrix`, `genres/*/chord_transitions.json`)
+2. ✓ Phase 2 — Melody higher-order Markov (scale-degree space, `melody_transition_matrix`, `_degree_to_midi`)
+3. ✓ Phase 3a — Two-layer musicality redesign (`MIDIQualityResult`, `check_midi_quality`, KS correlation, LZ ratio, render integrity, timbre bug deleted)
+4. ✓ Phase 3b — Quality-gate regeneration loop (`Config.min_musicality_score`, `Config.max_attempts`, `SampleResult.attempt`, manifest `attempt` field)
+5. ✓ Phase 3c — Calibration harness (`CalibrationResult`, `run_midi_calibration`, `suggest_threshold`, `save/load_calibration`)
 
-**Next:** Create PR `feat/genre-system` → `main` for v0.2 release. 1047 fast tests passing.
+**1197 fast tests passing.** Branch: `feat/higher-order-markov`.
 
-**v0.3 planned** — higher-order Markov (chord 2nd-order, melody 2nd-order, regeneration quality gate). Branch `feat/higher-order-markov`.
+**Next:** Create PR `feat/higher-order-markov` → `main` for v0.3 release.
 
 **Documentation rule (locked):** every functional PR must update README.md + relevant planning docs before merge.
-
-Optional post-release:
-- Run `.venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py` on pinned-FluidSynth host; commit 6 golden SHA-256s.
-- Merge PR #2 (`release/v0.1.0` → `main`) after review.
 
 ---
 
