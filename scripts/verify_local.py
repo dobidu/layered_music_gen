@@ -2,8 +2,11 @@
 """
 musicgen local verification script — v0.3.0
 
-Run with the project venv active:
-    python scripts/verify_local.py [--out path/to/report.json]
+Run from anywhere inside the repo — no venv activation needed:
+    python3 scripts/verify_local.py [--out path/to/report.json]
+
+The script auto-detects the .venv at the repo root and re-executes itself
+with the venv Python if the current interpreter doesn't have musicgen installed.
 
 Writes two files when done:
     local_test_report.json   — machine-readable (share with Claude for analysis)
@@ -12,17 +15,40 @@ Writes two files when done:
 No FluidSynth required for most checks. The script auto-detects capabilities
 and skips sections that need FluidSynth or .sf2 files.
 """
-from __future__ import annotations
+import os
+import sys
+from pathlib import Path as _Path
+
+# ---------------------------------------------------------------------------
+# Auto-reexec with venv Python before any imports that might fail.
+# Strategy: compare RAW paths (not resolved symlinks). Python uses the
+# executable path to locate pyvenv.cfg and populate site-packages —
+# running .venv/bin/python3 picks up venv packages even when it symlinks
+# to the same underlying interpreter as /usr/bin/python3.
+# ---------------------------------------------------------------------------
+_SCRIPT_ROOT = _Path(__file__).resolve().parent.parent
+_VENV_PYTHON = _SCRIPT_ROOT / ".venv" / "bin" / "python3"
+_RUNNING_INSIDE_VENV = str(_VENV_PYTHON) == sys.executable or \
+    os.environ.get("VIRTUAL_ENV") == str(_SCRIPT_ROOT / ".venv")
+
+if not _RUNNING_INSIDE_VENV:
+    if _VENV_PYTHON.is_file():
+        print(f"[auto] re-executing with venv Python: {_VENV_PYTHON}")
+        os.execv(str(_VENV_PYTHON), [str(_VENV_PYTHON)] + sys.argv)
+        # execv replaces the current process — nothing below runs
+    else:
+        print("ERROR: .venv not found. Run these commands from the repo root first:")
+        print(f"  python3 -m venv .venv")
+        print(f"  .venv/bin/pip install -e '.[dev]'")
+        sys.exit(1)
 
 import argparse
 import dataclasses
 import hashlib
 import json
-import os
 import shutil
 import struct
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
