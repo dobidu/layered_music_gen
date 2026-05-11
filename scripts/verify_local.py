@@ -454,6 +454,10 @@ def run_full_pipeline(env: dict) -> dict:
             checks["sample0_score_in_unit_interval"] = 0.0 <= r0.musicality_score <= 1.0
             checks["sample1_score_in_unit_interval"] = 0.0 <= r1.musicality_score <= 1.0
 
+            if r0.status != "ok":
+                print(f"    FAIL: generate() returned status={r0.status!r} for sample 0")
+                return _result(FAIL, error=f"generate() status={r0.status!r}", checks=checks)
+
             # Verify file layout for sample 0
             s0_dir = Path(r0.sample_dir)
             expected_files = [
@@ -538,6 +542,11 @@ def run_determinism_check(env: dict) -> dict:
 
             checks = {}
             checks["both_ok"] = r_a.status == "ok" and r_b.status == "ok"
+
+            if not checks["both_ok"]:
+                failed = [f"r_a={r_a.status!r}", f"r_b={r_b.status!r}"]
+                print(f"    FAIL: generate() non-ok — {', '.join(failed)}")
+                return _result(FAIL, error=f"generate() status non-ok: {failed}", checks=checks)
 
             def sha256(path):
                 h = hashlib.sha256()

@@ -284,9 +284,13 @@ def _assert_sum_of_stems(
     sums_i32 = np.zeros_like(mix_i32)
     for layer, path in stem_paths.items():
         _, stem_i16 = wf.read(path)
+        # Pedalboard FX (reverb/delay) can append tail samples beyond nominal
+        # audio length; pydub assembles the mix with ms-precision rounding.
+        # Trim stem to mix length so the invariant holds for shared samples.
+        stem_i16 = stem_i16[: mix_i16.shape[0]]
         if stem_i16.shape != mix_i16.shape:
             raise ValueError(
-                f"stem {layer!r} shape {stem_i16.shape} != "
+                f"stem {layer!r} trimmed shape {stem_i16.shape} != "
                 f"mix shape {mix_i16.shape}"
             )
         sums_i32 += stem_i16.astype(np.int32)

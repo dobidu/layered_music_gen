@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "musicgen"
-version = "0.1.0"              # R-Q4
+version = "0.3.0"              # R-Q4
 description = "Synthetic music dataset generator for ML training"
 readme = "README.md"
 license = { file = "LICENSE" }
