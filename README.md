@@ -6,10 +6,11 @@ Suitable for training models that learn music tagging, source separation, beat/t
 
 ## Status
 
+- **v0.3.0 — released.** Higher-order Markov complete: 2nd-order chord transition matrices per genre, configurable-order melody Markov over scale-degree intervals, two-layer musicality quality gate (`check_midi_quality` + audio integrity), quality-gate regeneration loop (`Config.min_musicality_score`, `Config.max_attempts`), calibration harness (`run_midi_calibration`, `suggest_threshold`). Tag `v0.3.0`.
 - **v0.2.0 — released.** Genre system complete: 8 built-in genres, `GenreSpec` composition engine, extended chord vocabulary, genre-constrained sampler/FX/soundfont selection, `list-genres` CLI, Jupyter demo notebook. Tag `v0.2.0`.
 - **v0.2 integrations — complete.** Three opt-in sibling-ecosystem integrations: SoundfontManager-backed soundfont selection, MIDI indexing, and audio stem indexing. Zero new hard dependencies.
 - **v0.1.0 — complete.** All 7 phases shipped: single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
-- **Test suite:** 1047 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
+- **Test suite:** 1197 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
 
 ## Core value
 
@@ -167,6 +168,8 @@ python music_gen.py
 | `workers` | `None` (all cores) | `generate_batch` parallel workers. Pass integer to cap. |
 | `count` | `1` | Number of samples for `generate_batch`. Override via `MUSICGEN_COUNT`. |
 | `output_mode` | `"full"` | `full` / `mix-only` / `stems-only` / `midi-only`. Override via `MUSICGEN_OUTPUT_MODE`. |
+| `min_musicality_score` | `0.0` | Quality gate threshold. `0.0` disables the gate. Samples with `musicality_score < threshold` are re-generated up to `max_attempts` times. Override via `MUSICGEN_MIN_MUSICALITY_SCORE`. |
+| `max_attempts` | `1` | Maximum re-roll attempts per sample when the quality gate is active. Must be ≥ 1. Override via `MUSICGEN_MAX_ATTEMPTS`. |
 | `sf_dir` | `<repo>/sf` | Override via `MUSICGEN_SF_DIR` env var. |
 | `soundfont_manager_db` | `None` | Path to a SoundfontManager JSON database. Set to activate metadata-aware soundfont selection (Integration 1). Override via `MUSICGEN_SOUNDFONT_MANAGER_DB`. |
 | `soundfont_manager_sf_dir` | `None` | Base directory for `.sf2` files when the SM db stores relative paths. Override via `MUSICGEN_SOUNDFONT_MANAGER_SF_DIR`. |
@@ -228,6 +231,45 @@ musicgen list-genres
 - **Soundfonts** — `soundfont_tags` per layer replaces static tags when SoundfontManager is active
 
 See [`genres/README.md`](genres/README.md) for the full `spec.json` format and instructions for writing custom genres.
+
+## Musicality scoring and quality gate (v0.3)
+
+The quality gate rejects samples that would contaminate a training distribution — not rank good music from very good music.
+
+**Two-layer architecture:**
+
+- **Layer 1 — symbolic (MIDI, pre-render, < 5 ms).** `check_midi_quality(midi_paths, key)` → `MIDIQualityResult`. Hard checks: empty layer, stuck pitch (> 80 % single note), extreme pitch range (> 36 semitones). Soft metrics on the melody layer: Krumhansl–Schmuckler key-profile correlation, scale adherence fraction, melodic step fraction, n-gram entropy, LZ compression ratio. Samples failing any hard check score 0.0 and are not rendered.
+
+- **Layer 2 — audio integrity (post-render).** `get_musicality_score(filename, genre_spec)` → `(float, dict)`. Render-integrity penalty (clipping ratio, silence ratio) multiplied against weighted musical analysis (tempo stability/clarity, harmony KS correlation, rhythm regularity/strength, noise/spectral metrics). Weights: tempo 30 %, harmony 30 %, rhythm 25 %, noise 15 %.
+
+**Quality-gate loop:**
+
+```python
+result = generate(Config(
+    global_seed=42,
+    sample_index=0,
+    dataset_root="./dataset",
+    min_musicality_score=0.6,   # reject below 0.6; 0.0 = disabled
+    max_attempts=3,             # re-roll up to 3 times with distinct seeds
+))
+print(result.attempt)          # which attempt was accepted (1, 2, or 3)
+```
+
+**Calibration** — derive an empirical threshold without human labels:
+
+```bash
+musicgen calibrate          # runs run_midi_calibration + prints suggested threshold
+```
+
+```python
+from musicgen.calibrate import run_midi_calibration, save_calibration
+
+result = run_midi_calibration(n_good=100, n_bad=100, seed=42)
+print(result.suggested_threshold, result.separation_ok)
+save_calibration(result, "calibration.json")
+```
+
+See [`docs/musicality-scoring.md`](docs/musicality-scoring.md) for the theoretical basis, metric derivations, and literature references.
 
 ## Optional integrations (v0.2)
 
@@ -388,7 +430,7 @@ Each sample lands in a zero-padded numbered directory:
 
 `sample.json` is **always written last** — its presence means the sample is complete. Re-running `generate()` with the same `(global_seed, sample_index)` skips work when this sentinel exists.
 
-`manifest.jsonl` accumulates one JSON object per sample with `sample_index`, `seed`, `status` (`ok`/`failed`), `split`, `path`, `musicality_score`, `duration_seconds`, and `wrote_at`.
+`manifest.jsonl` accumulates one JSON object per sample with `sample_index`, `seed`, `status` (`ok`/`failed`), `split`, `path`, `musicality_score`, `duration_seconds`, `attempt`, and `wrote_at`.
 
 ### `sample.json` schema (R-P4)
 
@@ -399,7 +441,7 @@ Every sample carries:
 - **Structure:** `song_arrangement` (list of `{part, start_seconds, end_seconds}`)
 - **Per-part:** `chord_progression`, `active_layers`, `soundfonts`, `fx_params` (with sampled effect parameters), `time_signatures_per_part`, `measures_per_part`
 - **Annotations:** `beat_times`, `downbeat_times` (seconds, swing-aware via MIDI-tick extraction)
-- **Quality:** `musicality_score` (full analyzer output: tempo / harmony / rhythm / timbre / SNR)
+- **Quality:** `musicality_score` (Layer 2 audio analyzer output: tempo / harmony / rhythm / noise, with render-integrity penalty); Layer 1 MIDI quality result available via `check_midi_quality` before render
 - **Routing:** `split` (`train` / `valid` / `test`, deterministic from seed)
 - **Paths:** `mix`, `stems.*`, `midi.*` (per-sample-dir-relative, e.g. `"mix.wav"`, `"stems/beat.wav"`)
 
@@ -461,7 +503,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 | 7 | Ship v0.1 — docs, polish, regression suite | ✓ COMPLETE | — |
 | v0.2-int | Sibling ecosystem integrations (SoundfontManager, MIDI indexer, audio indexer) | ✓ COMPLETE | — |
 | v0.2 | Genre system — GenreSpec engine, 8 built-in genres, chord vocab, CLI, notebook | ✓ COMPLETE | 8/8 |
-| v0.3 | Higher-order Markov — 2nd-order chords + melody, quality-gate regeneration | planned | — |
+| v0.3 | Higher-order Markov — 2nd-order chords + melody, two-layer quality gate, calibration | ✓ COMPLETE | 3/3 |
 
 ### Phases delivered
 
@@ -475,6 +517,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 - **Phase 7 — Ship v0.1.** README refresh, GitHub Actions CI (87% coverage, determinism regression), `v0.1.0` tag.
 - **v0.2 integrations — Sibling ecosystem.** Three opt-in integrations with zero new hard deps. (1) `soundfont_manager`: tag-based soundfont selection via `Config.soundfont_manager_db`; determinism preserved via `sf.path`-sorted candidates. (2) `midi_file_manager`: `musicgen index-midi` command indexes MIDI files into a `MidiManager` db with ground-truth enrichment. (3) `audio_sample_manager`: `musicgen index-audio` command indexes WAV stems into a `SampleManager` db for cross-library queries. All packages lazy-imported; `ImportError` falls back gracefully.
 - **v0.2 — Genre system.** `GenreSpec` dataclass with hard bounds (tempo, swing), soft weight dicts (time-sig, scale, chord type, inversion, layer probs), FX profile multipliers, and per-layer soundfont tag overrides. `merge_genres` composition algebra (range intersection, weighted-average soft dicts, union of drum pools). 8 built-in genres (`jazz`, `hip-hop`, `blues`, `pop`, `electronic`, `latin`, `reggae`, `classical`), each with `spec.json` + time-sig drum pattern files. Extended chord vocabulary (maj7, m7, dom7, dim7, m7b5, sus2, sus4, add9, aug + all inversions). CLI: `--genre jazz`, `--genre jazz --genre latin`, `musicgen list-genres`. `notebooks/musicgen_demo.ipynb` 12-section demo notebook. Tag `v0.2.0`.
+- **v0.3 — Higher-order Markov + quality gate.** 2nd-order chord transition matrices per genre (`genres/*/chord_transitions.json`), configurable-order melody Markov over scale-degree intervals (`generators/melody.py`). Two-layer musicality redesign: Layer 1 MIDI pre-filter (`check_midi_quality` — hard checks for empty/stuck/extreme-range + soft symbolic metrics: Krumhansl–Schmuckler key correlation, scale adherence, melodic step fraction, n-gram entropy, LZ compression ratio); Layer 2 audio integrity (`_render_integrity` — clipping, DC offset, silence, crest factor, applied as penalty to `MusicalityAnalyzer` output). Quality-gate regeneration loop: `Config.min_musicality_score` + `Config.max_attempts` — `generate()` re-rolls up to `max_attempts` times with distinct seeds; `SampleResult.attempt` and `manifest attempt` field track winning attempt. Calibration harness (`musicgen.calibrate.run_midi_calibration`, `suggest_threshold`) derives empirical thresholds from reference-good vs adversarial MIDI sets without human labels. See [`docs/musicality-scoring.md`](docs/musicality-scoring.md) for theoretical basis and implementation details. 1197 fast tests. Tag `v0.3.0`.
 
 ## Architecture (post-Phase 5)
 
@@ -498,7 +541,7 @@ src/musicgen/
 ├── mixer.py             # FX (pedalboard), pydub overlay, layer mask, part concat; genre FX profile
 ├── beats.py             # MIDI-tick beat + downbeat extraction (mido), swing-aware
 ├── annotator.py         # pure-function R-P4 schema assembler
-├── musicality.py        # MusicalityAnalyzer (tempo, harmony, rhythm, timbre, SNR)
+├── musicality.py        # two-layer scorer: check_midi_quality (Layer 1, pre-render) + MusicalityAnalyzer (Layer 2, audio)
 ├── writer.py            # atomic per-sample dir, sum-of-stems assertion, MIDI/stem concat, output_mode routing
 ├── manifest.py          # ManifestWriter (append-under-lock, JSONL)
 ├── midi_indexer.py      # index_midi_dataset: indexes MIDI files into MidiManager db (opt-in)
@@ -511,12 +554,15 @@ Pipeline flow inside `generate(config)`:
 ```
 resolve_genre_spec → sampler (genre-constrained draws)
        → generators (chord/melody/bassline/beat, genre pattern pool)
+       → check_midi_quality (Layer 1: hard + soft symbolic checks, < 5 ms)
+       → [re-roll up to max_attempts if score < min_musicality_score]
        → renderer (FluidSynth, parallel stems, genre soundfont tags)
        → mixer (FX + overlay + concat, genre FX profile)
        → beats (MIDI-tick extraction)
+       → get_musicality_score (Layer 2: audio integrity + musical analysis)
        → annotator (R-P4 dict + pre-roll offset)
        → writer (atomic sample dir + sum-of-stems + output_mode routing)
-       → manifest (JSONL append)
+       → manifest (JSONL append, includes attempt field)
        → SampleResult
 ```
 
@@ -524,8 +570,7 @@ resolve_genre_spec → sampler (genre-constrained draws)
 
 ## Roadmap — upcoming
 
-- **v0.3 — Higher-order Markov** (`feat/higher-order-markov`): 2nd-order chord transition matrices per genre (`chord_transitions.json`), configurable-order melody Markov over scale-relative intervals, quality-gate regeneration loops (`Config.min_musicality_score`). Matrices are genre-specific — depends on v0.2 genre system.
-- **v0.4 — ML-assisted generators:** ML-guided chord/melody generation trained on real MIDI corpora, model-guided regeneration.
+- **v0.4 — ML-assisted generators:** ML-guided chord/melody generation trained on real MIDI corpora, model-guided regeneration. Requires a reference dataset generated with the v0.3 stack as training corpus.
 - **Public release:** soundfont license audit + CC0/MIT replacement, HuggingFace Datasets / WebDataset exporters, sharded directory layout for 100k+ samples.
 
 Not planned: cloud / distributed generation, web UI, HTTP API.
