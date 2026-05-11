@@ -169,3 +169,7 @@ benchmarks/results/
 benchmarks/figures/
 presentation_prompts.txt
 HANDOFF_MAC.md
+
+# Local verification reports (machine-specific output)
+local_test_report.json
+local_test_report.md
