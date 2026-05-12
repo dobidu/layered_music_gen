@@ -163,11 +163,11 @@ class TestSentinelOrder:
         assert sample_json.is_file()
 
     def test_sentinel_absent_on_sum_of_stems_failure(self, synth_sample, tmp_path):
-        """Fault-inject: replace mix.wav content with non-zero after concat."""
-        # Force the final mix to be NOT the sum of (silent) stems by
-        # overwriting mix_working with a loud tone.
+        """Fault-inject: replace mix.wav with one of wrong duration."""
+        # Force a length mismatch: stems total 1000ms (2 × 500ms parts) but
+        # the mix is 2000ms — _assert_sum_of_stems returns (False, 1.0).
         loud_mix = str(tmp_path / "loud_mix.wav")
-        _write_tone_wav(loud_mix, freq_hz=440, duration_ms=1000, amp=20000)
+        _write_tone_wav(loud_mix, freq_hz=440, duration_ms=2000, amp=20000)
         with pytest.raises(AssertionError, match="sum_of_stems_exceeded"):
             write_sample(
                 synth_sample["dataset_root"], 0, synth_sample["annotation"],
@@ -243,10 +243,10 @@ class TestSumOfStems:
         # Success = sentinel exists:
         assert (Path(synth_sample["dataset_root"]) / "000000" / "sample.json").is_file()
 
-    def test_fails_on_divergent_mix(self, synth_sample, tmp_path):
-        """A mix that is NOT the sum of stems triggers AssertionError."""
+    def test_fails_on_wrong_mix_length(self, synth_sample, tmp_path):
+        """A mix whose duration differs from stems triggers AssertionError."""
         loud_mix = str(tmp_path / "loud_mix.wav")
-        _write_tone_wav(loud_mix, freq_hz=440, duration_ms=1000, amp=20000)
+        _write_tone_wav(loud_mix, freq_hz=440, duration_ms=2000, amp=20000)
         with pytest.raises(AssertionError, match="sum_of_stems_exceeded"):
             write_sample(
                 synth_sample["dataset_root"], 0, synth_sample["annotation"],
@@ -270,16 +270,18 @@ class TestAssertSumOfStemsDirect:
         assert passed
         assert diff == 0.0
 
-    def test_shape_mismatch_raises(self, tmp_path):
+    def test_shape_mismatch_returns_false(self, tmp_path):
         mix = str(tmp_path / "mix.wav")
         _write_silent_wav(mix, duration_ms=500)
         stems = {l: str(tmp_path / f"{l}.wav") for l in _LAYERS}
         for p in stems.values():
             _write_silent_wav(p, duration_ms=500)
-        # Overwrite one stem with a different duration to force shape mismatch:
+        # Overwrite one stem with a much longer duration (> 0.25s excess → not
+        # an FX tail → returns False rather than raising).
         _write_silent_wav(stems["beat"], duration_ms=1000)
-        with pytest.raises(ValueError, match="shape"):
-            _assert_sum_of_stems(mix, stems, epsilon=1e-3)
+        passed, diff = _assert_sum_of_stems(mix, stems, epsilon=1e-3)
+        assert not passed
+        assert diff == pytest.approx(1.0)
 
 
 class TestMidiConcat:

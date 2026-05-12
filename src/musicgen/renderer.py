@@ -32,6 +32,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+import numpy as np
+import scipy.io.wavfile as _wf
 from pydub import AudioSegment
 
 import config
@@ -286,11 +288,29 @@ def render_stems(
             layer, wav_path = future.result()
             stem_paths[layer] = wav_path
 
-    # Read duration from the first stem; all four have the same MIDI tempo
-    # grid so durations match to within one sample.
-    first_layer = _LAYERS[0]
-    first_audio = AudioSegment.from_wav(stem_paths[first_layer])
-    duration_seconds = first_audio.duration_seconds
+    # Beat is the duration reference — its generator directly counts pattern
+    # elements and is the most reliable. Melody/harmony/bassline generators
+    # can produce slightly different total beats due to rounding in their
+    # beats-per-measure formulas. Normalize all stems to beat length here,
+    # before FX, so the downstream mix assembly stays consistent.
+    # Use scipy (sample-accurate) to avoid pydub ms-rounding drift.
+    beat_sr, beat_i16 = _wf.read(stem_paths["beat"])
+    beat_samples = beat_i16.shape[0]
+    duration_seconds = beat_samples / beat_sr
+    for layer in _LAYERS:
+        if layer == "beat":
+            continue
+        sr, stem_i16 = _wf.read(stem_paths[layer])
+        if stem_i16.shape[0] != beat_samples:
+            if stem_i16.shape[0] > beat_samples:
+                stem_i16 = stem_i16[:beat_samples]
+            else:
+                pad = np.zeros(
+                    (beat_samples - stem_i16.shape[0], stem_i16.shape[1]),
+                    dtype=np.int16,
+                )
+                stem_i16 = np.concatenate([stem_i16, pad], axis=0)
+            _wf.write(stem_paths[layer], sr, stem_i16)
 
     return RenderResult(
         stem_paths=stem_paths,

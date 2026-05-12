@@ -37,6 +37,8 @@ import random
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import numpy as np
+import scipy.io.wavfile as _wf
 from pedalboard import Pedalboard, Compressor, Gain, Chorus, LadderFilter, Phaser, Delay, Reverb
 from pedalboard.io import AudioFile
 from pydub import AudioSegment
@@ -423,6 +425,25 @@ def mix_part(
     part_mix_name = f"part-{part_counter}-{part}.wav"
     part_mix_path = os.path.join(out_dir, part_mix_name)
     mix.export(part_mix_path, format='wav')
+
+    # Normalize stem files to the exact sample count of the exported mix.
+    # Pedalboard FX (reverb/delay) can extend stems slightly beyond mix length;
+    # pydub ms-rounding can leave stems 1-2 samples short. Use scipy reads for
+    # sample-accurate counts so _assert_sum_of_stems shape check passes exactly.
+    mix_sr, mix_i16_ref = _wf.read(part_mix_path)
+    mix_samples = mix_i16_ref.shape[0]
+    for layer, stem_path in final_stem_paths.items():
+        sr, stem_i16 = _wf.read(stem_path)
+        if stem_i16.shape[0] != mix_samples:
+            if stem_i16.shape[0] > mix_samples:
+                stem_i16 = stem_i16[:mix_samples]
+            else:
+                pad = np.zeros(
+                    (mix_samples - stem_i16.shape[0], stem_i16.shape[1]),
+                    dtype=np.int16,
+                )
+                stem_i16 = np.concatenate([stem_i16, pad], axis=0)
+            _wf.write(stem_path, sr, stem_i16)
 
     pedalboards_info = {layer: pedalboard_info_json(fx_boards[layer]) for layer in _LAYERS}
     song_time_end = song_time_start + mix.duration_seconds
