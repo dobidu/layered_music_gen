@@ -199,8 +199,8 @@ class TestApiSlow:
         assert annotation["seed"] == result.seed
         assert annotation["musicgen_version"] in ("0.1.0", "0.1.0+uninstalled")
         assert annotation["split"] in ("train", "valid", "test")
-        # Phase-5 TBD (R-P9 Phase 6) — stays None:
-        assert annotation.get("pre_roll_offset_seconds") is None
+        # R-P9 calibration implemented — pre_roll_offset_seconds is a float (0.0 if uncalibrated).
+        assert isinstance(annotation.get("pre_roll_offset_seconds"), float)
 
     def test_generate_twice_idempotent(self, tmp_path):
         """Second call short-circuits via sentinel — same paths, same seed."""

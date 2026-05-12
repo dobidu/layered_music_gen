@@ -22,7 +22,7 @@ Assertions after the pipeline runs:
   - 4 stem WAVs + 1 mix WAV + 4 MIDI files exist on disk in the per-sample dir.
   - sample.json has all Phase-4 fill fields non-None (D-15).
   - sample.json has Phase-5 filled fields (seed, musicgen_version, split) non-None.
-  - sample.json has pre_roll_offset_seconds as None (R-P9 Phase 6).
+  - sample.json has pre_roll_offset_seconds as float (R-P9 implemented).
   - analysis_failed is OMITTED on success (D-16 clarification).
   - MIDI files are bit-identical across two runs with the same seed.
 """
@@ -149,9 +149,9 @@ class TestFullGenerationPipeline:
         assert annotation["musicgen_version"] in ("0.1.0", "0.1.0+uninstalled")
         assert annotation["split"] in ("train", "valid", "test")
 
-        # Phase-5 TBD field (pre_roll_offset_seconds) stays None per D-22 — R-P9 is Phase 6.
-        assert annotation.get("pre_roll_offset_seconds") is None, (
-            f"pre_roll_offset_seconds should be None (Phase 6 fills), "
+        # R-P9 calibration now implemented — pre_roll_offset_seconds is a float (0.0 if uncalibrated).
+        assert isinstance(annotation.get("pre_roll_offset_seconds"), float), (
+            f"pre_roll_offset_seconds should be float, "
             f"got {annotation.get('pre_roll_offset_seconds')!r}"
         )
 
