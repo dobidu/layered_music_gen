@@ -190,14 +190,20 @@ def generate_melody(
             for chord in chords:
                 notes_to_use.extend(chord.pitches)
 
+        # Compare by pitch class (midi % 12) to avoid music21 octave-sensitive
+        # Pitch equality causing all-zero weight rows. chord_obj is the last
+        # chord; using pitch classes ensures intro/outro notes (from chords[0]
+        # or chords[-1]) still find matches even across octave differences.
+        chord_pcs = {p.midi % 12 for p in chord_obj.pitches}
+        n_notes = len(notes_to_use)
         transition_matrix = {}
         for note in notes_to_use:
-            transition_matrix[note.midi] = {}
-            for next_note in notes_to_use:
-                if next_note in chord_obj.pitches:
-                    transition_matrix[note.midi][next_note.midi] = 1 / len(notes_to_use)
-                else:
-                    transition_matrix[note.midi][next_note.midi] = 0
+            transition_matrix[note.midi] = {
+                next_note.midi: (
+                    1.0 / n_notes if next_note.midi % 12 in chord_pcs else 0.0
+                )
+                for next_note in notes_to_use
+            }
 
         melody = []
         note_durations = []
@@ -208,9 +214,14 @@ def generate_melody(
 
         possible_durations = list(spec.melody_duration_candidates)
         while remaining_beats > 0:
+            weights = list(transition_matrix[current_note].values())
+            if not any(weights):
+                # All weights zero (degenerate chord — no shared pitch classes):
+                # fall back to uniform so the loop never raises.
+                weights = [1.0] * len(weights)
             current_note = rng.choices(
                 population=list(transition_matrix[current_note].keys()),
-                weights=list(transition_matrix[current_note].values())
+                weights=weights,
             )[0]
             raw_duration = rng.choice(possible_durations)
             duration = validator.get_valid_duration(
