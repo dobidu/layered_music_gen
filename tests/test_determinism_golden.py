@@ -227,7 +227,7 @@ class TestSameProcessStability:
         # sf/<layer>/ dirs are empty (dev-machine default). Stub must still
         # draw from rng[RNG_SOUNDFONTS] to keep the RNG draw order identical
         # to the real pipeline (D-19).
-        def _fake_pick_soundfonts(cfg=None, rng=None):
+        def _fake_pick_soundfonts(cfg=None, rng=None, genre_spec=None):
             if rng is None:
                 raise ValueError("pick_soundfonts requires an injected rng (D-17)")
             # One rng.choice per layer matching real pick_soundfonts draw count.

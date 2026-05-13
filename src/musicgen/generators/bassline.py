@@ -35,6 +35,7 @@ def generate_bassline(
     chord_progression: List[str],
     melody: List[int],
     rng: random.Random,
+    genre_spec=None,
 ) -> str:
     """
     Generate a bassline based on key, tempo, a chord progression and time signature.

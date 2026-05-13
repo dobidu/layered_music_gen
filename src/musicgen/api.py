@@ -245,12 +245,13 @@ def _run_pipeline(
 ) -> SampleResult:
     """Run the full pipeline for one attempt. Called from generate() loop."""
     _cfg = config
+    genre_spec = resolve_genre_spec(_cfg)
 
     # Sample parameters from rngs[RNG_PARAMS] (D-19 — sampler calls).
-    key = generate_random_key(rngs[RNG_PARAMS])
-    tempo = generate_random_tempo(rngs[RNG_PARAMS])
-    time_signature = generate_random_time_signature(rngs[RNG_PARAMS])
-    swing_amount = min(0.75, max(0.5, float(generate_random_swing(rngs[RNG_PARAMS]))))
+    key = generate_random_key(rngs[RNG_PARAMS], genre_spec=genre_spec)
+    tempo = generate_random_tempo(rngs[RNG_PARAMS], genre_spec=genre_spec)
+    time_signature = generate_random_time_signature(rngs[RNG_PARAMS], genre_spec=genre_spec)
+    swing_amount = min(0.75, max(0.5, float(generate_random_swing(rngs[RNG_PARAMS], genre_spec=genre_spec))))
 
     while True:
         measures, signatures = generate_song_measures(
@@ -272,11 +273,12 @@ def _run_pipeline(
         _generate_all_midi(
             rngs, key, tempo, signatures, measures, name,
             _cfg.chord_patterns_file, swing_amount, _cfg,
+            genre_spec=genre_spec,
         )
     )
 
     # Soundfont selection (D-19 — rngs[RNG_SOUNDFONTS]).
-    soundfonts = renderer.pick_soundfonts(_cfg, rngs[RNG_SOUNDFONTS])
+    soundfonts = renderer.pick_soundfonts(_cfg, rngs[RNG_SOUNDFONTS], genre_spec=genre_spec)
     for layer, sf_path in soundfonts.items():
         logger.info("%s soundfont: %s", layer.capitalize(), sf_path)
 
@@ -420,6 +422,8 @@ def _generate_all_midi(
     chord_pat_file: str,
     swing_amount: float,
     cfg: Config,
+    *,
+    genre_spec=None,
 ) -> Tuple[Dict, Dict, Dict, Dict, Dict, Dict]:
     """Per-part MIDI generation (extracted from music_gen.generate_song_parts, D-34).
 
@@ -439,18 +443,18 @@ def _generate_all_midi(
 
         chord_progression, harm_filename[part] = generate_chord_progression(
             key, tempo, time_signature, part_measures, name_part, part,
-            chord_pat_file, rngs[RNG_GENERATORS],
+            chord_pat_file, rngs[RNG_GENERATORS], genre_spec=genre_spec,
         )
         chord_progressions[part] = list(chord_progression)
 
         melody, melo_filename[part] = generate_melody(
             key, tempo, time_signature, part_measures, name_part, part,
-            chord_progression, rngs[RNG_GENERATORS],
+            chord_progression, rngs[RNG_GENERATORS], genre_spec=genre_spec,
         )
 
         bass_filename[part] = generate_bassline(
             key, tempo, time_signature, part_measures, name_part, part,
-            chord_progression, melody, rngs[RNG_GENERATORS],
+            chord_progression, melody, rngs[RNG_GENERATORS], genre_spec=genre_spec,
         )
 
         beat_filename[part], beat_annotations[part] = generate_beat(
