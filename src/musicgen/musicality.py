@@ -396,8 +396,11 @@ class MusicalityAnalyzer:
             # Integrity penalty: clipping, silence, DC bias, and crest factor.
             clipping_penalty = float(np.clip(integrity["clipping_ratio"] * 2.0, 0.0, 1.0))
             silence_frac = float(np.clip((integrity["silence_ratio"] - 0.5) * 2.0, 0.0, 1.0))
-            # DC offset > 0.001 (normalised float) indicates a render artifact.
-            dc_penalty = 1.0 if integrity["dc_offset"] > 0.001 else 0.0
+            # DC offset > 0.01 (normalised float) indicates a render artifact.
+            # Probe over 100 normal samples showed p99=0.0035, max=0.0035 —
+            # 0.001 fired on 34% of normal output. 0.01 gives 0% false-reject
+            # while still catching genuine DC bias (which typically exceeds 0.1).
+            dc_penalty = 1.0 if integrity["dc_offset"] > 0.01 else 0.0
             # Crest factor outside [3, 30] dB is physically implausible audio.
             crest = integrity["crest_db"]
             crest_penalty = 1.0 if (crest < 3.0 or crest > 30.0) else 0.0
