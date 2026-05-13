@@ -269,8 +269,21 @@ class MusicalityAnalyzer:
                 tempo_stability = 0.0
 
             onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-            max_onset = float(np.max(onset_env))
-            tempo_clarity = float(np.mean(onset_env)) / max_onset if max_onset > 0 else 0.0
+            # mean/max is structurally ~0.04 for any beat-periodic signal
+            # (spiky envelope, low mean vs peak). Use beat-rate ACF prominence:
+            # fraction of onset energy explained by the dominant periodic lag.
+            if len(onset_env) > 4 and float(np.max(onset_env)) > 0:
+                _acf = librosa.autocorrelate(onset_env, max_size=len(onset_env) // 2)
+                _acf = _acf[1:]  # skip lag-0
+                _mean_acf = float(np.mean(_acf))
+                if _mean_acf > 0:
+                    tempo_clarity = float(np.clip(
+                        float(np.max(_acf)) / (_mean_acf + 1e-6) / 10.0, 0, 1
+                    ))
+                else:
+                    tempo_clarity = 0.0
+            else:
+                tempo_clarity = 0.0
 
             return {
                 "stability": float(np.clip(tempo_stability, 0, 1)),
@@ -360,11 +373,14 @@ class MusicalityAnalyzer:
             else:
                 density_score = 0.0
 
+            # Return raw [0,1] values — consistent with analyze_tempo and
+            # analyze_harmony. calculate_musicality takes np.mean() of these,
+            # so pre-weighting here would dilute the sub-score by 4×.
             return {
-                "regularity": float(np.clip(rhythm_regularity, 0, 1)) * 0.35,
-                "strength": float(np.clip(beat_strength, 0, 1)) * 0.30,
-                "pattern": float(np.clip(pattern_score, 0, 1)) * 0.20,
-                "density": float(np.clip(density_score, 0, 1)) * 0.15,
+                "regularity": float(np.clip(rhythm_regularity, 0, 1)),
+                "strength": float(np.clip(beat_strength, 0, 1)),
+                "pattern": float(np.clip(pattern_score, 0, 1)),
+                "density": float(np.clip(density_score, 0, 1)),
             }
         except Exception as exc:
             self.logger.debug("rhythm analysis failed: %s", exc)
