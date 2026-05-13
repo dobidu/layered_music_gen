@@ -245,6 +245,8 @@ class MusicalityAnalyzer:
     ) -> Dict[str, float]:
         try:
             tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+            # librosa >= 0.10 returns tempo as ndarray([bpm]); extract scalar.
+            tempo = float(np.squeeze(tempo))
 
             if genre_spec is not None:
                 t_min = float(getattr(genre_spec, "tempo_min", None) or 40.0)

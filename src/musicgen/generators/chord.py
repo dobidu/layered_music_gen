@@ -60,6 +60,7 @@ INVERSION_NAMES: List[str] = ["root", "first", "second", "third"]
 # Octave 4 base (C4 = MIDI 60); root note derived from roman numeral + key
 _C4 = 60
 _NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+_ENHARMONIC = {"Cb": "B", "Db": "C#", "Eb": "D#", "Fb": "E", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
 
 # Default type weight when no genre spec supplied — uniform over triads + dom7
 # (keeps backward-compat feel while exposing the mechanism)
@@ -73,8 +74,9 @@ _DEFAULT_TYPE_WEIGHTS: Dict[str, float] = {"maj": 0.4, "min": 0.4, "dom7": 0.2}
 def _root_midi(numeral: str, key: str) -> int:
     """Return MIDI note number of chord root in octave 4."""
     rn = roman.RomanNumeral(numeral.strip(), key)
-    root_name = rn.root().name  # e.g. "C", "G#"
-    semitone = _NOTE_NAMES.index(root_name.replace("-", "b").replace("♭", "b"))
+    root_name = rn.root().name.replace("-", "b").replace("♭", "b")
+    root_name = _ENHARMONIC.get(root_name, root_name)
+    semitone = _NOTE_NAMES.index(root_name)
     return _C4 + semitone
 
 
