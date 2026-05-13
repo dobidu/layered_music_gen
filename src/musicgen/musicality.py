@@ -120,8 +120,19 @@ def _render_integrity(y: np.ndarray, sr: int) -> Dict[str, float]:
     clipping_threshold = 0.99
     clipping_ratio = float(np.mean(np.abs(y) >= clipping_threshold))
     dc_offset = float(np.abs(np.mean(y)))
-    silence_threshold = 0.01
-    silence_ratio = float(np.mean(np.abs(y) < silence_threshold))
+
+    # Frame-based silence: fraction of 20ms frames with RMS below -60 dBFS.
+    # Sample-level |y| < threshold counts zero-crossings of any non-silent wave,
+    # making pure sinusoids appear ~2% silent — uninterpretable for a paper metric.
+    _n = int(sr * 20 / 1000)  # 20 ms frame
+    if _n > 0 and len(y) >= _n:
+        _frames = y[: (len(y) // _n) * _n].reshape(-1, _n)
+        _rms_frames = np.sqrt(np.mean(_frames ** 2, axis=1) + 1e-12)
+        _silence_floor = 10 ** (-60.0 / 20.0)
+        silence_ratio = float(np.mean(_rms_frames < _silence_floor))
+    else:
+        silence_ratio = 0.0
+
     peak = float(np.max(np.abs(y))) if len(y) > 0 else 1e-10
     rms = float(np.sqrt(np.mean(y ** 2)))
     rms_safe = max(rms, 1e-10)
@@ -278,8 +289,12 @@ class MusicalityAnalyzer:
             ks_score = _ks_key_correlation(pc_hist)
 
             key_clarity = float(np.max(mean_chroma)) if total > 0 else 0.0
-            harmonic_changes = float(np.mean(np.diff(chroma, axis=1) != 0))
-            stability = 1.0 - harmonic_changes
+            # chroma_cqt values are continuous floats; exact equality between
+            # consecutive frames is ~never true, so the old (diff != 0) test
+            # returned harmonic_changes ≈ 1.0 for any real input, collapsing
+            # stability to ≈ 0 regardless of actual harmonic smoothness.
+            chroma_diff = np.linalg.norm(np.diff(chroma, axis=1), axis=0)
+            stability = float(np.exp(-float(np.mean(chroma_diff))))
 
             return {
                 "key_clarity": float(np.clip(key_clarity, 0, 1)),
@@ -319,10 +334,21 @@ class MusicalityAnalyzer:
 
             if len(onset_env) > 0:
                 acf = librosa.autocorrelate(onset_env)
-                acf = acf[: len(acf) // 2]
-                pattern_score = float(
-                    np.clip(1.0 - 0.5 * float(np.std(acf)) / (float(np.mean(acf)) + 1e-6), 0, 1)
-                )
+                # std/mean of the full half-ACF has no musical interpretation:
+                # it varies nearly randomly across samples. Use first-peak
+                # prominence instead: ratio of the strongest periodic lag to
+                # the mean ACF level, normalised to [0,1] by dividing by 5.
+                acf_search = acf[1 : len(acf) // 2]
+                if len(acf_search) > 0 and float(np.mean(acf_search)) > 0:
+                    peak_lag = int(np.argmax(acf_search))
+                    pattern_score = float(
+                        np.clip(
+                            acf_search[peak_lag] / (float(np.mean(acf_search)) + 1e-6) / 5.0,
+                            0, 1,
+                        )
+                    )
+                else:
+                    pattern_score = 0.0
             else:
                 pattern_score = 0.0
 
@@ -367,10 +393,15 @@ class MusicalityAnalyzer:
 
             integrity = _render_integrity(y, sr)
 
-            # Integrity penalty: clipping and silence both degrade the score
+            # Integrity penalty: clipping, silence, DC bias, and crest factor.
             clipping_penalty = float(np.clip(integrity["clipping_ratio"] * 2.0, 0.0, 1.0))
             silence_frac = float(np.clip((integrity["silence_ratio"] - 0.5) * 2.0, 0.0, 1.0))
-            integrity_penalty = max(clipping_penalty, silence_frac)
+            # DC offset > 0.001 (normalised float) indicates a render artifact.
+            dc_penalty = 1.0 if integrity["dc_offset"] > 0.001 else 0.0
+            # Crest factor outside [3, 30] dB is physically implausible audio.
+            crest = integrity["crest_db"]
+            crest_penalty = 1.0 if (crest < 3.0 or crest > 30.0) else 0.0
+            integrity_penalty = max(clipping_penalty, silence_frac, dc_penalty, crest_penalty)
 
             tempo_scores = self.analyze_tempo(y, sr, genre_spec=genre_spec)
             harmony_scores = self.analyze_harmony(y, sr)
