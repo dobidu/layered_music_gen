@@ -120,7 +120,7 @@ def _latex_table(r: ConstructValidityResult) -> str:
             rej_n = int(p.rejection_rate * len(p.scores))
             mean_str = f"${p.mean:.3f}$ (rej.\\ {rej_n}/{len(p.scores)})"
 
-        auroc_str = f"${p.auroc:.3f}\\;[{p.ci_low:.3f},{\\,}{p.ci_high:.3f}]$"
+        auroc_str = f"${p.auroc:.3f}\\;[{p.ci_low:.3f},\\,{p.ci_high:.3f}]$"
         if p.is_chance:
             auroc_str += r"$^\dagger$"
 
