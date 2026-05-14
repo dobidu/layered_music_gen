@@ -6,16 +6,23 @@ and known-pathological signals. Two pathology modes:
   synthetic  — programmatically generated bad audio (silence, white noise,
                hard-clipped sine, DC offset, pure monotone sine)
   real       — controlled degradations of good musicgen outputs (silence gaps,
-               noise overlay, tempo warp, pitch scramble, time reversal)
+               noise overlay, 4× tempo warp, per-chunk pitch scramble,
+               time reversal)
   both       — union of the above
 
-Primary metric: AUROC treating gate score as binary classifier (good=1, bad=0).
-Secondary: Cohen's d separation (mean_good - mean_bad) / pooled_std.
+Primary metric: AUROC (gate score as binary classifier, good=1, bad=0)
+with bootstrap 95% CI. Secondary: Cohen's d. When bad-set std=0, reports
+rejection_rate (fraction scoring below threshold) instead of d.
+
+Known limitation:
+  real/silence_gaps scores at chance level (~0.56 AUROC). The gate measures
+  per-frame audio quality; if sounding portions are musical the gate passes
+  the sample regardless of silence distribution. Document as out-of-scope
+  for a temporal-completeness check.
 """
 from __future__ import annotations
 
 import logging
-import random
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,7 +33,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 _SR = 44100
-_DURATION = 5.0  # seconds for synthetic samples
+_DURATION = 5.0
+_REJECTION_THRESHOLD = 0.5
+
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -40,7 +49,11 @@ class PathologyResult:
     mean: float
     std: float
     auroc: float
-    separation: float  # Cohen's d vs good set
+    ci_low: float
+    ci_high: float
+    separation: float       # Cohen's d (NaN when bad std = 0)
+    rejection_rate: float   # fraction of bad scores < _REJECTION_THRESHOLD
+    is_chance: bool         # True when ci_high < 0.65 (CI overlaps 0.5)
 
 
 @dataclass
@@ -51,6 +64,7 @@ class ConstructValidityResult:
     good_std: float
     pathologies: List[PathologyResult]
     overall_auroc: float
+    overall_auroc_ci: Tuple[float, float]
     overall_separation: float
 
 
@@ -59,22 +73,46 @@ class ConstructValidityResult:
 # ---------------------------------------------------------------------------
 
 
-def _auroc(pos: List[float], neg: List[float]) -> float:
-    if not pos or not neg:
-        return 0.5
-    count = 0.0
-    for p in pos:
-        for n in neg:
-            if p > n:
-                count += 1.0
-            elif p == n:
-                count += 0.5
+def _auroc_arr(pos: np.ndarray, neg: np.ndarray) -> float:
+    """Vectorised Mann-Whitney AUROC."""
+    p = pos[:, np.newaxis]
+    n = neg[np.newaxis, :]
+    count = float(np.sum(p > n)) + 0.5 * float(np.sum(p == n))
     return count / (len(pos) * len(neg))
 
 
+def _auroc(pos: List[float], neg: List[float]) -> float:
+    if not pos or not neg:
+        return 0.5
+    return _auroc_arr(np.array(pos), np.array(neg))
+
+
+def _bootstrap_auroc_ci(
+    pos: List[float],
+    neg: List[float],
+    n_bootstrap: int = 2000,
+    alpha: float = 0.05,
+    seed: int = 0,
+) -> Tuple[float, float]:
+    if len(pos) < 2 or len(neg) < 2:
+        return (0.0, 1.0)
+    rng = np.random.default_rng(seed)
+    pos_arr = np.array(pos)
+    neg_arr = np.array(neg)
+    boot = np.empty(n_bootstrap)
+    for i in range(n_bootstrap):
+        p_b = rng.choice(pos_arr, size=len(pos_arr), replace=True)
+        n_b = rng.choice(neg_arr, size=len(neg_arr), replace=True)
+        boot[i] = _auroc_arr(p_b, n_b)
+    return (
+        float(np.percentile(boot, 100 * alpha / 2)),
+        float(np.percentile(boot, 100 * (1 - alpha / 2))),
+    )
+
+
 def _cohens_d(good: List[float], bad: List[float]) -> float:
-    if not good or not bad:
-        return 0.0
+    if not good or not bad or float(np.std(bad)) == 0.0:
+        return float("nan")
     mg, mb = float(np.mean(good)), float(np.mean(bad))
     sg, sb = float(np.std(good)), float(np.std(bad))
     ng, nb = len(good), len(bad)
@@ -82,8 +120,14 @@ def _cohens_d(good: List[float], bad: List[float]) -> float:
     return float((mg - mb) / (pooled + 1e-9))
 
 
+def _rejection_rate(scores: List[float], threshold: float = _REJECTION_THRESHOLD) -> float:
+    if not scores:
+        return 0.0
+    return float(np.mean([s < threshold for s in scores]))
+
+
 # ---------------------------------------------------------------------------
-# Audio I/O helpers
+# Audio I/O
 # ---------------------------------------------------------------------------
 
 
@@ -116,33 +160,29 @@ def _synth_silence(path: str, sr: int = _SR, duration: float = _DURATION, rng=No
 
 def _synth_noise(path: str, sr: int = _SR, duration: float = _DURATION, rng=None) -> str:
     _rng = rng if rng is not None else np.random.default_rng(0)
-    y = _rng.standard_normal(int(duration * sr)).astype(np.float32) * 0.5
-    return _write_wav(y, sr, path)
+    return _write_wav(_rng.standard_normal(int(duration * sr)).astype(np.float32) * 0.5, sr, path)
 
 
 def _synth_clip(path: str, sr: int = _SR, duration: float = _DURATION, rng=None) -> str:
     t = np.linspace(0, duration, int(duration * sr))
-    y = np.clip(np.sin(2 * np.pi * 440 * t) * 10.0, -0.1, 0.1)
-    return _write_wav(y, sr, path)
+    return _write_wav(np.clip(np.sin(2 * np.pi * 440 * t) * 10.0, -0.1, 0.1), sr, path)
 
 
 def _synth_dc(path: str, sr: int = _SR, duration: float = _DURATION, rng=None) -> str:
     t = np.linspace(0, duration, int(duration * sr))
-    y = 0.5 + 0.05 * np.sin(2 * np.pi * 440 * t)
-    return _write_wav(y, sr, path)
+    return _write_wav(0.5 + 0.05 * np.sin(2 * np.pi * 440 * t), sr, path)
 
 
 def _synth_monotone(path: str, sr: int = _SR, duration: float = _DURATION, rng=None) -> str:
     t = np.linspace(0, duration, int(duration * sr))
-    y = 0.5 * np.sin(2 * np.pi * 440 * t)
-    return _write_wav(y, sr, path)
+    return _write_wav(0.5 * np.sin(2 * np.pi * 440 * t), sr, path)
 
 
 _SYNTH_GENERATORS = {
-    "silence": _synth_silence,
-    "noise": _synth_noise,
-    "clip": _synth_clip,
-    "dc": _synth_dc,
+    "silence":  _synth_silence,
+    "noise":    _synth_noise,
+    "clip":     _synth_clip,
+    "dc":       _synth_dc,
     "monotone": _synth_monotone,
 }
 
@@ -155,20 +195,23 @@ REAL_TYPES: List[str] = [
     "silence_gaps", "noise_overlay", "tempo_warp", "pitch_scramble", "time_reverse"
 ]
 
+# silence_gaps is documented as chance-level: gate measures per-frame quality,
+# not temporal completeness. Musical content in sounding portions passes.
+CHANCE_LEVEL_TYPES: List[str] = ["silence_gaps"]
+
 
 def _degrade_silence_gaps(y: np.ndarray, sr: int, rng) -> np.ndarray:
-    """Zero out ~50% in 500ms chunks."""
+    """Zero out ~50% of audio in 500 ms chunks."""
     chunk = int(sr * 0.5)
     y = y.copy()
-    n_chunks = max(1, int(len(y) / chunk * 0.5))
-    for _ in range(n_chunks):
+    for _ in range(max(1, int(len(y) / chunk * 0.5))):
         start = int(rng.integers(0, max(1, len(y) - chunk)))
         y[start:start + chunk] = 0.0
     return y
 
 
 def _degrade_noise_overlay(y: np.ndarray, sr: int, rng) -> np.ndarray:
-    """White noise at ~3 dB SNR."""
+    """Add white noise at ~3 dB SNR."""
     rms = float(np.sqrt(np.mean(y ** 2) + 1e-9))
     noise = rng.standard_normal(len(y)).astype(np.float32) * rms * 0.7
     return np.clip(y + noise, -1.0, 1.0)
@@ -181,19 +224,18 @@ def _degrade_tempo_warp(y: np.ndarray, sr: int, rng) -> np.ndarray:
 
 
 def _degrade_pitch_scramble(y: np.ndarray, sr: int, rng) -> np.ndarray:
-    """1-second chunks each shifted by a random ±6 semitone amount."""
+    """1-second chunks each shifted by a random ±6-semitone amount."""
     import librosa
     chunk = int(sr * 1.0)
     out = np.zeros(len(y), dtype=np.float32)
     for start in range(0, len(y), chunk):
         seg = y[start:start + chunk].astype(np.float32)
-        n_steps = float(rng.uniform(-6, 6))
         try:
-            seg = librosa.effects.pitch_shift(seg, sr=sr, n_steps=n_steps)
+            seg = librosa.effects.pitch_shift(seg, sr=sr, n_steps=float(rng.uniform(-6, 6)))
         except Exception:
             pass
         end = min(start + len(seg), len(out))
-        out[start:end] = seg[: end - start]
+        out[start:end] = seg[:end - start]
     return out
 
 
@@ -203,11 +245,11 @@ def _degrade_time_reverse(y: np.ndarray, sr: int, rng) -> np.ndarray:
 
 
 _REAL_DEGRADATIONS = {
-    "silence_gaps": _degrade_silence_gaps,
-    "noise_overlay": _degrade_noise_overlay,
-    "tempo_warp": _degrade_tempo_warp,
-    "pitch_scramble": _degrade_pitch_scramble,
-    "time_reverse": _degrade_time_reverse,
+    "silence_gaps":    _degrade_silence_gaps,
+    "noise_overlay":   _degrade_noise_overlay,
+    "tempo_warp":      _degrade_tempo_warp,
+    "pitch_scramble":  _degrade_pitch_scramble,
+    "time_reverse":    _degrade_time_reverse,
 }
 
 
@@ -229,7 +271,7 @@ def _generate_good_wav(seed: int, idx: int, dataset_root: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Main experiment entry point
+# Main experiment
 # ---------------------------------------------------------------------------
 
 
@@ -240,12 +282,14 @@ def run_construct_validity_test(
     synthetic_signals: Optional[List[str]] = None,
     real_signals: Optional[List[str]] = None,
     base_seed: int = 42,
+    bootstrap_n: int = 2000,
 ) -> ConstructValidityResult:
-    """Run E2 construct validity experiment.
+    """Run E2 construct validity.
 
     bad_types: "synthetic" | "real" | "both"
-    synthetic_signals: subset of SYNTHETIC_TYPES (default: all)
-    real_signals: subset of REAL_TYPES (default: all)
+    n_bad: bad samples per pathology type. For real degradations, if n_bad >
+           n_good, good samples are cycled (each reused with a different rng seed).
+    bootstrap_n: bootstrap iterations for 95% CI (set 0 to skip).
     """
     if synthetic_signals is None:
         synthetic_signals = list(SYNTHETIC_TYPES)
@@ -270,50 +314,54 @@ def run_construct_validity_test(
         good_scores = [s for s in (_score_wav(p) for p in good_wav_paths) if s is not None]
         if not good_scores:
             raise RuntimeError("No good samples scored successfully.")
+
         print(
             f"  Good: n={len(good_scores)}  mean={np.mean(good_scores):.3f}"
             f"  σ={np.std(good_scores):.3f}",
             flush=True,
         )
 
+        def _make_pathology(name: str, scores: List[float]) -> PathologyResult:
+            auc = _auroc(good_scores, scores)
+            ci = _bootstrap_auroc_ci(good_scores, scores, n_bootstrap=bootstrap_n) \
+                if bootstrap_n > 0 and scores else (0.0, 1.0)
+            d = _cohens_d(good_scores, scores)
+            rr = _rejection_rate(scores)
+            is_chance = ci[1] < 0.65
+            return PathologyResult(
+                name=name, scores=scores,
+                mean=float(np.mean(scores)) if scores else 0.0,
+                std=float(np.std(scores)) if scores else 0.0,
+                auroc=auc, ci_low=ci[0], ci_high=ci[1],
+                separation=d, rejection_rate=rr, is_chance=is_chance,
+            )
+
         pathology_results: List[PathologyResult] = []
 
-        # --- Synthetic bad ---
+        # --- Synthetic ---
         if bad_types in ("synthetic", "both"):
             for sig in synthetic_signals:
-                gen_fn = _SYNTH_GENERATORS[sig]
                 bad_dir = tmp_path / "synth" / sig
                 bad_dir.mkdir(parents=True, exist_ok=True)
                 scores: List[float] = []
                 for j in range(n_bad):
                     wav = str(bad_dir / f"{sig}_{j}.wav")
-                    gen_fn(wav, rng=np_rng)
+                    _SYNTH_GENERATORS[sig](wav, rng=np_rng)
                     s = _score_wav(wav)
                     if s is not None:
                         scores.append(s)
-                auc = _auroc(good_scores, scores)
-                d = _cohens_d(good_scores, scores)
-                pathology_results.append(PathologyResult(
-                    name=f"synth/{sig}",
-                    scores=scores,
-                    mean=float(np.mean(scores)) if scores else 0.0,
-                    std=float(np.std(scores)) if scores else 0.0,
-                    auroc=auc,
-                    separation=d,
-                ))
-                print(
-                    f"  synth/{sig:<14} n={len(scores):3d}  mean={np.mean(scores):.3f}"
-                    f"  AUROC={auc:.3f}  d={d:.2f}",
-                    flush=True,
-                )
+                pr = _make_pathology(f"synth/{sig}", scores)
+                pathology_results.append(pr)
+                _log_pathology(pr)
 
-        # --- Real (degradation) bad ---
+        # --- Real (degradation) ---
         if bad_types in ("real", "both"):
             import librosa
             import soundfile as sf
 
+            # Load good audio; cycle if n_bad > n_good
             good_audio: List[Tuple[np.ndarray, int]] = []
-            for p in good_wav_paths[:n_bad]:
+            for p in good_wav_paths:
                 y, sr = librosa.load(p, sr=None, mono=True)
                 good_audio.append((y, int(sr)))
 
@@ -324,7 +372,8 @@ def run_construct_validity_test(
                 bad_dir = tmp_path / "real" / sig
                 bad_dir.mkdir(parents=True, exist_ok=True)
                 scores = []
-                for j, (y, sr) in enumerate(good_audio):
+                for j in range(n_bad):
+                    y, sr = good_audio[j % len(good_audio)]
                     try:
                         y_bad = deg_fn(y, sr, real_rng)
                         wav = str(bad_dir / f"{sig}_{j}.wav")
@@ -334,24 +383,14 @@ def run_construct_validity_test(
                             scores.append(s)
                     except Exception as exc:
                         logger.warning("degrade %s/%d: %s", sig, j, exc)
-                auc = _auroc(good_scores, scores)
-                d = _cohens_d(good_scores, scores)
-                pathology_results.append(PathologyResult(
-                    name=f"real/{sig}",
-                    scores=scores,
-                    mean=float(np.mean(scores)) if scores else 0.0,
-                    std=float(np.std(scores)) if scores else 0.0,
-                    auroc=auc,
-                    separation=d,
-                ))
-                print(
-                    f"  real/{sig:<14} n={len(scores):3d}  mean={np.mean(scores):.3f}"
-                    f"  AUROC={auc:.3f}  d={d:.2f}",
-                    flush=True,
-                )
+                pr = _make_pathology(f"real/{sig}", scores)
+                pathology_results.append(pr)
+                _log_pathology(pr)
 
         all_bad = [s for pr in pathology_results for s in pr.scores]
         overall_auroc = _auroc(good_scores, all_bad)
+        overall_ci = _bootstrap_auroc_ci(good_scores, all_bad, n_bootstrap=bootstrap_n) \
+            if bootstrap_n > 0 else (0.0, 1.0)
         overall_d = _cohens_d(good_scores, all_bad)
 
         return ConstructValidityResult(
@@ -361,5 +400,18 @@ def run_construct_validity_test(
             good_std=float(np.std(good_scores)),
             pathologies=pathology_results,
             overall_auroc=overall_auroc,
+            overall_auroc_ci=overall_ci,
             overall_separation=overall_d,
         )
+
+
+def _log_pathology(pr: PathologyResult) -> None:
+    d_str = f"d={pr.separation:.2f}" if not (pr.separation != pr.separation) else \
+        f"rej={pr.rejection_rate:.0%}"
+    flag = "chance-level" if pr.is_chance else ""
+    print(
+        f"  {pr.name:<22} n={len(pr.scores):4d}  mean={pr.mean:.3f}"
+        f"  AUROC={pr.auroc:.3f} [{pr.ci_low:.3f}–{pr.ci_high:.3f}]"
+        f"  {d_str}  {flag}",
+        flush=True,
+    )

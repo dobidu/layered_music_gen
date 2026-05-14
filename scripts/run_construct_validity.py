@@ -4,10 +4,11 @@
 Usage:
     python3 scripts/run_construct_validity.py --bad-type both --n-good 50 --n-bad 20
     python3 scripts/run_construct_validity.py --bad-type synthetic --quick
-    python3 scripts/run_construct_validity.py --bad-type real --n-good 30 --n-bad 15
+    python3 scripts/run_construct_validity.py --bad-type real --n-good 30 --n-bad 30
+    python3 scripts/run_construct_validity.py --n-good 100 --n-bad 100 --latex
 
 Writes:
-    <out>.json   — full results
+    <out>.json   — full results (paper-ready numbers)
 """
 import os
 import pathlib
@@ -33,27 +34,155 @@ warnings.filterwarnings("ignore")
 from musicgen.eval.construct_validity import (
     SYNTHETIC_TYPES,
     REAL_TYPES,
+    CHANCE_LEVEL_TYPES,
     ConstructValidityResult,
+    PathologyResult,
     run_construct_validity_test,
 )
 
 
-def _print_results(r: ConstructValidityResult) -> None:
-    print()
-    print("=" * 72)
-    print(f"E2 Construct Validity  —  good n={r.n_good}  mean={r.good_mean:.3f}"
-          f"  σ={r.good_std:.3f}")
-    print("=" * 72)
-    print(f"\n{'pathology':<26}  {'n':>4}  {'mean':>6}  {'σ':>5}  {'AUROC':>6}  {'d':>5}")
-    for p in r.pathologies:
-        flag = "  ✓" if p.auroc >= 0.85 else ("  ~" if p.auroc >= 0.70 else "  ✗")
-        print(f"  {p.name:<24}  {len(p.scores):4d}  {p.mean:6.3f}  {p.std:5.3f}"
-              f"  {p.auroc:6.3f}  {p.separation:5.2f}{flag}")
-    print()
-    gate = "PASS" if r.overall_auroc >= 0.85 else ("MARGINAL" if r.overall_auroc >= 0.70 else "FAIL")
-    print(f"Overall AUROC = {r.overall_auroc:.3f}  d = {r.overall_separation:.2f}  [{gate}]")
-    print(f"Criterion: AUROC ≥ 0.85 for gate to have discriminative validity")
+# ---------------------------------------------------------------------------
+# Console table
+# ---------------------------------------------------------------------------
 
+def _print_table(r: ConstructValidityResult) -> None:
+    print()
+    print("=" * 80)
+    print(
+        f"E2 Construct Validity  —  good n={r.n_good}"
+        f"  mean={r.good_mean:.3f}  σ={r.good_std:.3f}"
+    )
+    print("=" * 80)
+    hdr = f"  {'pathology':<26}  {'n':>4}  {'mean ± σ':>12}  {'AUROC [95% CI]':>20}  note"
+    print(hdr)
+    print("  " + "-" * 76)
+
+    for p in r.pathologies:
+        mean_str = f"{p.mean:.3f} ± {p.std:.3f}"
+        ci_str = f"{p.auroc:.3f} [{p.ci_low:.3f}–{p.ci_high:.3f}]"
+        note = _note(p)
+        pass_flag = "✓" if p.auroc >= 0.85 else ("~" if p.auroc >= 0.70 else "✗")
+        print(f"  {p.name:<26}  {len(p.scores):4d}  {mean_str:>12}  {ci_str:>20}  {pass_flag} {note}")
+
+    print()
+    gate = "PASS" if r.overall_auroc >= 0.85 else \
+           ("MARGINAL" if r.overall_auroc >= 0.70 else "FAIL")
+    ci = r.overall_auroc_ci
+    print(
+        f"Overall AUROC = {r.overall_auroc:.3f} [{ci[0]:.3f}–{ci[1]:.3f}]"
+        f"  d = {r.overall_separation:.2f}  [{gate}]"
+    )
+    print("Criterion: AUROC ≥ 0.85  (chance-level pathologies excluded from pass/fail)")
+
+    chance = [p for p in r.pathologies if p.is_chance]
+    if chance:
+        print()
+        print("† Chance-level pathologies (out-of-scope for gate):")
+        for p in chance:
+            short = p.name.split("/")[-1]
+            print(f"  {short}: gate measures per-frame quality, not temporal completeness.")
+            print(f"    Musical content in sounding portions passes regardless of silence gaps.")
+
+
+def _note(p: PathologyResult) -> str:
+    if p.is_chance:
+        return "chance-level†"
+    d = p.separation
+    if d != d:  # NaN → std==0 → all rejected
+        return f"rej={p.rejection_rate:.0%} ({int(p.rejection_rate * len(p.scores))}/{len(p.scores)})"
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# LaTeX table
+# ---------------------------------------------------------------------------
+
+def _latex_table(r: ConstructValidityResult) -> str:
+    lines = [
+        r"\begin{table}[ht]",
+        r"\centering",
+        r"\caption{E2 Construct validity: musicality gate AUROC vs.\ known pathologies.}",
+        r"\label{tab:e2-construct-validity}",
+        r"\begin{tabular}{llrrr}",
+        r"\toprule",
+        r"Type & Pathology & $n$ & Mean $\pm$ SD & AUROC [95\,\% CI] \\",
+        r"\midrule",
+    ]
+
+    prev_type = None
+    for p in r.pathologies:
+        ptype, pname = p.name.split("/", 1)
+        type_str = ptype if ptype != prev_type else ""
+        prev_type = ptype
+
+        mean_str = f"${p.mean:.3f} \\pm {p.std:.3f}$"
+        if p.std == 0.0:
+            rej_n = int(p.rejection_rate * len(p.scores))
+            mean_str = f"${p.mean:.3f}$ (rej.\\ {rej_n}/{len(p.scores)})"
+
+        auroc_str = f"${p.auroc:.3f}\\;[{p.ci_low:.3f},{\\,}{p.ci_high:.3f}]$"
+        if p.is_chance:
+            auroc_str += r"$^\dagger$"
+
+        lines.append(
+            f"{type_str} & {pname} & {len(p.scores)} & {mean_str} & {auroc_str} \\\\"
+        )
+
+    lines += [
+        r"\midrule",
+        f"\\multicolumn{{2}}{{l}}{{\\textbf{{Overall}}}} & "
+        f"{sum(len(p.scores) for p in r.pathologies)} & "
+        f"--- & "
+        f"$\\mathbf{{{r.overall_auroc:.3f}}}\\;[{r.overall_auroc_ci[0]:.3f},\\,{r.overall_auroc_ci[1]:.3f}]$ \\\\",
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\begin{tablenotes}",
+        r"\small",
+        f"Good set: $n={r.n_good}$, mean $= {r.good_mean:.3f}$, SD $= {r.good_std:.3f}$. "
+        r"AUROC computed via Mann–Whitney $U$; 95\,\% CI from $B=2000$ bootstrap samples. "
+        r"$^\dagger$ Chance-level: gate measures per-frame audio quality, "
+        r"not temporal completeness (silence-gap distribution is out of scope).",
+        r"\end{tablenotes}",
+        r"\end{table}",
+    ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# JSON serialisation
+# ---------------------------------------------------------------------------
+
+def _to_report(r: ConstructValidityResult, elapsed: float) -> dict:
+    return {
+        "elapsed_seconds": round(elapsed, 2),
+        "n_good": r.n_good,
+        "good_mean": r.good_mean,
+        "good_std": r.good_std,
+        "good_scores": r.good_scores,
+        "overall_auroc": r.overall_auroc,
+        "overall_auroc_ci": list(r.overall_auroc_ci),
+        "overall_separation": r.overall_separation,
+        "pathologies": [
+            {
+                "name": p.name,
+                "n": len(p.scores),
+                "mean": p.mean,
+                "std": p.std,
+                "auroc": p.auroc,
+                "auroc_ci_95": [p.ci_low, p.ci_high],
+                "cohens_d": None if (p.separation != p.separation) else p.separation,
+                "rejection_rate": p.rejection_rate,
+                "is_chance_level": p.is_chance,
+                "scores": p.scores,
+            }
+            for p in r.pathologies
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -62,27 +191,32 @@ def main() -> None:
     parser.add_argument("--n-bad", type=int, default=20,
                         help="Bad samples per pathology type")
     parser.add_argument("--synthetic-signals", nargs="+", default=None,
-                        choices=SYNTHETIC_TYPES,
-                        help=f"Synthetic types (default: all {SYNTHETIC_TYPES})")
+                        choices=SYNTHETIC_TYPES)
     parser.add_argument("--real-signals", nargs="+", default=None,
-                        choices=REAL_TYPES,
-                        help=f"Real degradation types (default: all {REAL_TYPES})")
+                        choices=REAL_TYPES)
     parser.add_argument("--base-seed", type=int, default=42)
-    parser.add_argument("--out", default="eval_results/e2_construct_validity",
-                        help="Output stem (writes <stem>.json)")
+    parser.add_argument("--bootstrap-n", type=int, default=2000,
+                        help="Bootstrap iterations for CI (0 to skip)")
+    parser.add_argument("--out", default="eval_results/e2_construct_validity")
+    parser.add_argument("--latex", action="store_true",
+                        help="Also write <out>.tex (LaTeX table)")
     parser.add_argument("--quick", action="store_true",
-                        help="Quick run: n-good=5, n-bad=5")
+                        help="Quick run: n-good=5, n-bad=5, bootstrap-n=500")
     args = parser.parse_args()
 
     if args.quick:
         args.n_good = 5
         args.n_bad = 5
+        if args.bootstrap_n == 2000:
+            args.bootstrap_n = 500
 
     pathlib.Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 
     print(f"E2 Construct Validity")
-    print(f"  bad-type={args.bad_type}  n-good={args.n_good}  n-bad={args.n_bad}")
-    print(f"  synthetic={args.synthetic_signals or 'all'}  real={args.real_signals or 'all'}")
+    print(f"  bad-type={args.bad_type}  n-good={args.n_good}  n-bad={args.n_bad}"
+          f"  bootstrap-n={args.bootstrap_n}")
+    print(f"  synthetic={args.synthetic_signals or 'all'}"
+          f"  real={args.real_signals or 'all'}")
     print()
 
     t0 = time.monotonic()
@@ -93,35 +227,22 @@ def main() -> None:
         synthetic_signals=args.synthetic_signals,
         real_signals=args.real_signals,
         base_seed=args.base_seed,
+        bootstrap_n=args.bootstrap_n,
     )
     elapsed = time.monotonic() - t0
 
-    _print_results(r)
+    _print_table(r)
 
-    report = {
-        "elapsed_seconds": round(elapsed, 2),
-        "n_good": r.n_good,
-        "good_mean": r.good_mean,
-        "good_std": r.good_std,
-        "good_scores": r.good_scores,
-        "overall_auroc": r.overall_auroc,
-        "overall_separation": r.overall_separation,
-        "pathologies": [
-            {
-                "name": p.name,
-                "n": len(p.scores),
-                "mean": p.mean,
-                "std": p.std,
-                "auroc": p.auroc,
-                "separation": p.separation,
-                "scores": p.scores,
-            }
-            for p in r.pathologies
-        ],
-    }
-    out_path = args.out + ".json"
-    pathlib.Path(out_path).write_text(json.dumps(report, indent=2))
-    print(f"\nWritten: {out_path}  ({elapsed:.0f}s)")
+    report = _to_report(r, elapsed)
+    json_path = args.out + ".json"
+    pathlib.Path(json_path).write_text(json.dumps(report, indent=2))
+    print(f"\nWritten: {json_path}  ({elapsed:.0f}s)")
+
+    if args.latex:
+        tex = _latex_table(r)
+        tex_path = args.out + ".tex"
+        pathlib.Path(tex_path).write_text(tex)
+        print(f"Written: {tex_path}")
 
 
 if __name__ == "__main__":
