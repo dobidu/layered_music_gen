@@ -1,0 +1,27 @@
+\begin{table}[ht]
+\centering
+\caption{E2 Construct validity: musicality gate AUROC vs.\ known pathologies.}
+\label{tab:e2-construct-validity}
+\begin{tabular}{llrrr}
+\toprule
+Type & Pathology & $n$ & Mean $\pm$ SD & AUROC [95\,\% CI] \\
+\midrule
+synth & silence & 100 & $0.000$ (rej.\ 100/100) & $1.000\;[1.000,\,1.000]$ \\
+ & noise & 100 & $0.597 \pm 0.044$ & $0.999\;[0.995,\,1.000]$ \\
+ & clip & 100 & $0.000$ (rej.\ 100/100) & $1.000\;[1.000,\,1.000]$ \\
+ & dc & 100 & $0.000$ (rej.\ 100/100) & $1.000\;[1.000,\,1.000]$ \\
+ & monotone & 100 & $0.572 \pm 0.000$ & $1.000\;[1.000,\,1.000]$ \\
+real & silence_gaps & 100 & $0.715 \pm 0.029$ & $0.634\;[0.553,\,0.711]$ \\
+ & noise_overlay & 100 & $0.645 \pm 0.029$ & $0.962\;[0.937,\,0.982]$ \\
+ & tempo_warp & 100 & $0.699 \pm 0.033$ & $0.738\;[0.665,\,0.802]$ \\
+ & pitch_scramble & 100 & $0.665 \pm 0.038$ & $0.882\;[0.833,\,0.922]$ \\
+ & time_reverse & 100 & $0.679 \pm 0.028$ & $0.861\;[0.806,\,0.909]$ \\
+\midrule
+\multicolumn{2}{l}{\textbf{Overall}} & 1000 & --- & $\mathbf{0.908}\;[0.883,\,0.930]$ \\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+Good set: $n=100$, mean $= 0.734$, SD $= 0.042$. AUROC computed via Mann–Whitney $U$; 95\,\% CI from $B=2000$ bootstrap samples. $^\dagger$ Chance-level: gate measures per-frame audio quality, not temporal completeness (silence-gap distribution is out of scope).
+\end{tablenotes}
+\end{table}
