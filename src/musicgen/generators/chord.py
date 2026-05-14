@@ -67,6 +67,8 @@ _ENHARMONIC = {
     # double sharps (x / ##)
     "C##": "D", "D##": "E", "E##": "F#", "F##": "G",
     "G##": "A", "A##": "B", "B##": "C#",
+    # single sharps that are enharmonic to naturals
+    "E#": "F",  "B#": "C",
     # double flats
     "Cbb": "A#", "Dbb": "C", "Ebb": "D", "Fbb": "D#",
     "Gbb": "F",  "Abb": "G", "Bbb": "A",
