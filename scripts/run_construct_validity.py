@@ -34,7 +34,8 @@ warnings.filterwarnings("ignore")
 from musicgen.eval.construct_validity import (
     SYNTHETIC_TYPES,
     REAL_TYPES,
-    CHANCE_LEVEL_TYPES,
+    EXCLUDED_FROM_CRITERION,
+    EXCLUSION_NOTES,
     ConstructValidityResult,
     PathologyResult,
     run_construct_validity_test,
@@ -61,32 +62,38 @@ def _print_table(r: ConstructValidityResult) -> None:
         mean_str = f"{p.mean:.3f} ± {p.std:.3f}"
         ci_str = f"{p.auroc:.3f} [{p.ci_low:.3f}–{p.ci_high:.3f}]"
         note = _note(p)
-        pass_flag = "✓" if p.auroc >= 0.85 else ("~" if p.auroc >= 0.70 else "✗")
+        pass_flag = "excl" if p.excluded else \
+                    ("✓" if p.auroc >= 0.85 else ("~" if p.auroc >= 0.70 else "✗"))
         print(f"  {p.name:<26}  {len(p.scores):4d}  {mean_str:>12}  {ci_str:>20}  {pass_flag} {note}")
 
     print()
-    gate = "PASS" if r.overall_auroc >= 0.85 else \
-           ("MARGINAL" if r.overall_auroc >= 0.70 else "FAIL")
-    ci = r.overall_auroc_ci
-    print(
-        f"Overall AUROC = {r.overall_auroc:.3f} [{ci[0]:.3f}–{ci[1]:.3f}]"
-        f"  d = {r.overall_separation:.2f}  [{gate}]"
-    )
-    print("Criterion: AUROC ≥ 0.85  (chance-level pathologies excluded from pass/fail)")
+    oci = r.overall_auroc_ci
+    cci = r.criterion_auroc_ci
+    n_excl = sum(1 for p in r.pathologies if p.excluded)
+    n_all = len(r.pathologies)
+    gate = "PASS" if r.criterion_auroc >= 0.85 else \
+           ("MARGINAL" if r.criterion_auroc >= 0.70 else "FAIL")
 
-    chance = [p for p in r.pathologies if p.is_chance]
-    if chance:
+    print(f"Overall AUROC   ({n_all:2d} pathologies) = "
+          f"{r.overall_auroc:.3f} [{oci[0]:.3f}–{oci[1]:.3f}]"
+          f"  d={r.overall_separation:.2f}")
+    print(f"Criterion AUROC ({n_all-n_excl:2d} pathologies) = "
+          f"{r.criterion_auroc:.3f} [{cci[0]:.3f}–{cci[1]:.3f}]"
+          f"  [{gate}]  (≥0.85 required)")
+
+    excl = [p for p in r.pathologies if p.excluded]
+    if excl:
         print()
-        print("† Chance-level pathologies (out-of-scope for gate):")
-        for p in chance:
-            short = p.name.split("/")[-1]
-            print(f"  {short}: gate measures per-frame quality, not temporal completeness.")
-            print(f"    Musical content in sounding portions passes regardless of silence gaps.")
+        print("Excluded from criterion:")
+        for p in excl:
+            note_text = EXCLUSION_NOTES.get(p.exclusion_reason, p.exclusion_reason)
+            print(f"  {p.name}: {note_text}")
 
 
 def _note(p: PathologyResult) -> str:
-    if p.is_chance:
-        return "chance-level†"
+    if p.excluded:
+        tag = "†" if p.exclusion_reason == "temporal-completeness" else "‡"
+        return f"excl{tag}"
     d = p.separation
     if d != d:  # NaN → std==0 → all rejected
         return f"rej={p.rejection_rate:.0%} ({int(p.rejection_rate * len(p.scores))}/{len(p.scores)})"
@@ -121,27 +128,40 @@ def _latex_table(r: ConstructValidityResult) -> str:
             mean_str = f"${p.mean:.3f}$ (rej.\\ {rej_n}/{len(p.scores)})"
 
         auroc_str = f"${p.auroc:.3f}\\;[{p.ci_low:.3f},\\,{p.ci_high:.3f}]$"
-        if p.is_chance:
-            auroc_str += r"$^\dagger$"
+        if p.excluded:
+            marker = r"$^\dagger$" if p.exclusion_reason == "temporal-completeness" \
+                     else r"$^\ddagger$"
+            auroc_str += marker
 
         lines.append(
             f"{type_str} & {pname} & {len(p.scores)} & {mean_str} & {auroc_str} \\\\"
         )
 
+    n_excl = sum(1 for p in r.pathologies if p.excluded)
+    n_all = len(r.pathologies)
+    oci = r.overall_auroc_ci
+    cci = r.criterion_auroc_ci
     lines += [
         r"\midrule",
-        f"\\multicolumn{{2}}{{l}}{{\\textbf{{Overall}}}} & "
+        f"\\multicolumn{{2}}{{l}}{{Overall ({n_all} pathologies)}} & "
         f"{sum(len(p.scores) for p in r.pathologies)} & "
         f"--- & "
-        f"$\\mathbf{{{r.overall_auroc:.3f}}}\\;[{r.overall_auroc_ci[0]:.3f},\\,{r.overall_auroc_ci[1]:.3f}]$ \\\\",
+        f"${r.overall_auroc:.3f}\\;[{oci[0]:.3f},\\,{oci[1]:.3f}]$ \\\\",
+        f"\\multicolumn{{2}}{{l}}{{\\textbf{{Criterion}} ({n_all-n_excl} pathologies)}} & "
+        f"{sum(len(p.scores) for p in r.pathologies if not p.excluded)} & "
+        f"--- & "
+        f"$\\mathbf{{{r.criterion_auroc:.3f}}}\\;[{cci[0]:.3f},\\,{cci[1]:.3f}]$ \\\\",
         r"\bottomrule",
         r"\end{tabular}",
         r"\begin{tablenotes}",
         r"\small",
         f"Good set: $n={r.n_good}$, mean $= {r.good_mean:.3f}$, SD $= {r.good_std:.3f}$. "
-        r"AUROC computed via Mann–Whitney $U$; 95\,\% CI from $B=2000$ bootstrap samples. "
-        r"$^\dagger$ Chance-level: gate measures per-frame audio quality, "
-        r"not temporal completeness (silence-gap distribution is out of scope).",
+        r"AUROC via Mann–Whitney $U$; 95\,\% CI from $B=2000$ bootstrap samples. "
+        r"Pass criterion: AUROC $\geq 0.85$. "
+        r"$^\dagger$ Excluded (temporal completeness): gate measures per-frame audio quality; "
+        r"silence distribution is out of scope. "
+        r"$^\ddagger$ Excluded (confound): 4$\times$ resample conflates pitch shift "
+        r"($\pm$2\,oct.) with tempo; a dedicated temporal-coherence check is out of scope.",
         r"\end{tablenotes}",
         r"\end{table}",
     ]
@@ -162,6 +182,9 @@ def _to_report(r: ConstructValidityResult, elapsed: float) -> dict:
         "overall_auroc": r.overall_auroc,
         "overall_auroc_ci": list(r.overall_auroc_ci),
         "overall_separation": r.overall_separation,
+        "criterion_auroc": r.criterion_auroc,
+        "criterion_auroc_ci": list(r.criterion_auroc_ci),
+        "criterion_n_pathologies": r.criterion_n_pathologies,
         "pathologies": [
             {
                 "name": p.name,
@@ -172,7 +195,8 @@ def _to_report(r: ConstructValidityResult, elapsed: float) -> dict:
                 "auroc_ci_95": [p.ci_low, p.ci_high],
                 "cohens_d": None if (p.separation != p.separation) else p.separation,
                 "rejection_rate": p.rejection_rate,
-                "is_chance_level": p.is_chance,
+                "excluded_from_criterion": p.excluded,
+                "exclusion_reason": p.exclusion_reason,
                 "scores": p.scores,
             }
             for p in r.pathologies

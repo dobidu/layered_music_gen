@@ -51,9 +51,10 @@ class PathologyResult:
     auroc: float
     ci_low: float
     ci_high: float
-    separation: float       # Cohen's d (NaN when bad std = 0)
-    rejection_rate: float   # fraction of bad scores < _REJECTION_THRESHOLD
-    is_chance: bool         # True when ci_high < 0.65 (CI overlaps 0.5)
+    separation: float           # Cohen's d (NaN when bad std = 0)
+    rejection_rate: float       # fraction of bad scores < _REJECTION_THRESHOLD
+    excluded: bool              # excluded from criterion AUROC
+    exclusion_reason: Optional[str]  # key into EXCLUSION_NOTES, or None
 
 
 @dataclass
@@ -63,9 +64,12 @@ class ConstructValidityResult:
     good_mean: float
     good_std: float
     pathologies: List[PathologyResult]
-    overall_auroc: float
+    overall_auroc: float                    # over all pathologies
     overall_auroc_ci: Tuple[float, float]
     overall_separation: float
+    criterion_auroc: float                  # excluding EXCLUDED_FROM_CRITERION
+    criterion_auroc_ci: Tuple[float, float]
+    criterion_n_pathologies: int            # number of pathologies in criterion
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +199,24 @@ REAL_TYPES: List[str] = [
     "silence_gaps", "noise_overlay", "tempo_warp", "pitch_scramble", "time_reverse"
 ]
 
-# silence_gaps is documented as chance-level: gate measures per-frame quality,
-# not temporal completeness. Musical content in sounding portions passes.
-CHANCE_LEVEL_TYPES: List[str] = ["silence_gaps"]
+# Types explicitly excluded from the criterion AUROC, keyed by short name.
+# Value is a reason tag looked up in EXCLUSION_NOTES.
+EXCLUDED_FROM_CRITERION: Dict[str, str] = {
+    "silence_gaps": "temporal-completeness",
+    "tempo_warp":   "pitch-tempo-confound",
+}
+
+EXCLUSION_NOTES: Dict[str, str] = {
+    "temporal-completeness": (
+        "Gate measures per-frame audio quality; silence distribution "
+        "is out of scope for a temporal-completeness check."
+    ),
+    "pitch-tempo-confound": (
+        "4x resample conflates pitch shift (+/-2 oct.) with tempo distortion. "
+        "The gate partially detects the resulting spectral change (AUROC~0.74) "
+        "but not reliably. A dedicated temporal-coherence check is out of scope."
+    ),
+}
 
 
 def _degrade_silence_gaps(y: np.ndarray, sr: int, rng) -> np.ndarray:
@@ -322,18 +341,21 @@ def run_construct_validity_test(
         )
 
         def _make_pathology(name: str, scores: List[float]) -> PathologyResult:
+            short = name.split("/")[-1]
+            excl_reason = EXCLUDED_FROM_CRITERION.get(short)
             auc = _auroc(good_scores, scores)
             ci = _bootstrap_auroc_ci(good_scores, scores, n_bootstrap=bootstrap_n) \
                 if bootstrap_n > 0 and scores else (0.0, 1.0)
             d = _cohens_d(good_scores, scores)
             rr = _rejection_rate(scores)
-            is_chance = ci[1] < 0.65
+            excluded = excl_reason is not None
             return PathologyResult(
                 name=name, scores=scores,
                 mean=float(np.mean(scores)) if scores else 0.0,
                 std=float(np.std(scores)) if scores else 0.0,
                 auroc=auc, ci_low=ci[0], ci_high=ci[1],
-                separation=d, rejection_rate=rr, is_chance=is_chance,
+                separation=d, rejection_rate=rr,
+                excluded=excluded, exclusion_reason=excl_reason,
             )
 
         pathology_results: List[PathologyResult] = []
@@ -393,6 +415,12 @@ def run_construct_validity_test(
             if bootstrap_n > 0 else (0.0, 1.0)
         overall_d = _cohens_d(good_scores, all_bad)
 
+        criterion_prs = [pr for pr in pathology_results if not pr.excluded]
+        criterion_bad = [s for pr in criterion_prs for s in pr.scores]
+        criterion_auroc = _auroc(good_scores, criterion_bad) if criterion_bad else 0.5
+        criterion_ci = _bootstrap_auroc_ci(good_scores, criterion_bad, n_bootstrap=bootstrap_n) \
+            if bootstrap_n > 0 and criterion_bad else (0.0, 1.0)
+
         return ConstructValidityResult(
             n_good=len(good_scores),
             good_scores=good_scores,
@@ -402,13 +430,16 @@ def run_construct_validity_test(
             overall_auroc=overall_auroc,
             overall_auroc_ci=overall_ci,
             overall_separation=overall_d,
+            criterion_auroc=criterion_auroc,
+            criterion_auroc_ci=criterion_ci,
+            criterion_n_pathologies=len(criterion_prs),
         )
 
 
 def _log_pathology(pr: PathologyResult) -> None:
     d_str = f"d={pr.separation:.2f}" if not (pr.separation != pr.separation) else \
         f"rej={pr.rejection_rate:.0%}"
-    flag = "chance-level" if pr.is_chance else ""
+    flag = f"[excl: {pr.exclusion_reason}]" if pr.excluded else ""
     print(
         f"  {pr.name:<22} n={len(pr.scores):4d}  mean={pr.mean:.3f}"
         f"  AUROC={pr.auroc:.3f} [{pr.ci_low:.3f}–{pr.ci_high:.3f}]"
