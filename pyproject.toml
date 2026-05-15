@@ -36,12 +36,19 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-xdist>=3.5",
 ]
+# pip install musicgen[samples]  — enables sample-based composition (M3/M4)
+samples = [
+    "audio-sample-manager @ git+https://github.com/dobidu/audio_sample_manager",
+    "soundfile>=0.12.1",
+    "rubberband-stretch>=0.1; platform_system != 'Windows'",
+]
 
 [project.scripts]
-musicgen = "musicgen.cli:app"
+musicgen    = "musicgen.cli:app"
+musicality  = "musicality.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/musicgen"]
+packages = ["src/musicgen", "src/musicality"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
