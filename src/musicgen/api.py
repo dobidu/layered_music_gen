@@ -422,6 +422,24 @@ def _run_pipeline(
         pre_roll_offset_seconds=pre_roll_offset_s,
     )
 
+    # M5: record which real audio samples were mixed in (provenance).
+    if selected_samples:
+        annotation["used_samples"] = {
+            layer: {
+                "id":               getattr(s, "id", None),
+                "name":             getattr(s, "name", None),
+                "path":             str(getattr(s, "path", "") or ""),
+                "bpm":              getattr(s, "bpm", None),
+                "key":              str(getattr(s, "key", "") or ""),
+                "category":         str(getattr(s, "category", "") or ""),
+                "musicality_score": getattr(s, "musicality_score", None),
+                "mode":             getattr(
+                                        sc_cfg.layer_rules.get(layer), "mode", None
+                                    ) if sc_cfg else None,
+            }
+            for layer, s in selected_samples.items()
+        }
+
     # Write atomic per-sample layout.
     paths = writer.write_sample(
         config.dataset_root, config.sample_index, annotation,

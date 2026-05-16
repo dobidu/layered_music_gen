@@ -39,6 +39,9 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+samples_app = typer.Typer(help="Commands for building and managing sample libraries.", no_args_is_help=True)
+app.add_typer(samples_app, name="samples")
+
 _VALID_OUTPUT_MODES = {"full", "mix-only", "stems-only", "midi-only"}
 
 
@@ -65,6 +68,9 @@ def _setup_logging(verbose: bool, quiet: bool) -> None:
 # ---------------------------------------------------------------------------
 
 
+_VALID_SAMPLE_MODES = {"alongside", "substitution", "adlib", "off"}
+
+
 @app.command()
 def generate(
     seed: int = typer.Option(..., "--seed", "-s", help="Global RNG seed (required for reproducibility)."),
@@ -72,8 +78,16 @@ def generate(
     out: str = typer.Option("./dataset", "--out", "-o", help="Dataset output directory."),
     workers: Optional[int] = typer.Option(None, "--workers", "-w", help="Parallel workers (default: os.cpu_count())."),
     output_mode: str = typer.Option("full", "--output-mode", "-m", help="full | mix-only | stems-only | midi-only."),
-    genre: Optional[List[str]] = typer.Option(None, "--genre", "-g", help="Genre name(s) to constrain generation (repeatable: --genre jazz --genre latin)."),
-    genres_dir: Optional[str] = typer.Option(None, "--genres-dir", help="Custom genres directory (default: <repo>/genres/)."),
+    genre: Optional[List[str]] = typer.Option(None, "--genre", "-g", help="Genre name(s) (repeatable)."),
+    genres_dir: Optional[str] = typer.Option(None, "--genres-dir", help="Custom genres directory."),
+    # Sample composition flags (M5)
+    sample_db: Optional[str] = typer.Option(None, "--sample-db", help="SampleManager JSON database path. Enables sample composition."),
+    sample_beat: str = typer.Option("alongside", "--sample-beat", help="Beat layer sample mode: alongside|substitution|adlib|off."),
+    sample_bassline: str = typer.Option("alongside", "--sample-bassline", help="Bassline layer sample mode: alongside|substitution|adlib|off."),
+    sample_melody: str = typer.Option("off", "--sample-melody", help="Melody layer sample mode: alongside|substitution|adlib|off."),
+    sample_harmony: str = typer.Option("off", "--sample-harmony", help="Harmony layer sample mode: alongside|substitution|adlib|off."),
+    sample_gain: float = typer.Option(-3.0, "--sample-gain", help="Gain (dB) applied to all sample layers."),
+    sample_min_score: float = typer.Option(0.0, "--sample-min-score", help="Min musicality score for sample selection (0=disabled)."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
 ) -> None:
@@ -82,8 +96,7 @@ def generate(
 
     if output_mode not in _VALID_OUTPUT_MODES:
         typer.echo(
-            f"Error: --output-mode must be one of {sorted(_VALID_OUTPUT_MODES)}, "
-            f"got {output_mode!r}",
+            f"Error: --output-mode must be one of {sorted(_VALID_OUTPUT_MODES)}, got {output_mode!r}",
             err=True,
         )
         raise typer.Exit(code=1)
@@ -99,6 +112,34 @@ def generate(
         overrides["genre"] = list(genre)
     if genres_dir:
         overrides["genres_dir"] = os.path.abspath(genres_dir)
+
+    # Build SampleCompositionConfig if --sample-db is set.
+    if sample_db:
+        from musicgen.sample_composition import SampleLayerRule, SampleCompositionConfig
+        _layer_modes = {
+            "beat":     sample_beat,
+            "bassline": sample_bassline,
+            "melody":   sample_melody,
+            "harmony":  sample_harmony,
+        }
+        for lname, lmode in _layer_modes.items():
+            if lmode not in _VALID_SAMPLE_MODES:
+                typer.echo(
+                    f"Error: --sample-{lname} must be one of {sorted(_VALID_SAMPLE_MODES)}, got {lmode!r}",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+
+        layer_rules = {
+            layer: SampleLayerRule(layer=layer, mode=mode, gain_db=sample_gain)
+            for layer, mode in _layer_modes.items()
+            if mode != "off"
+        }
+        overrides["sample_composition"] = SampleCompositionConfig(
+            sample_db_path=os.path.abspath(sample_db),
+            layer_rules=layer_rules,
+            global_min_musicality=sample_min_score if sample_min_score > 0 else None,
+        )
 
     cfg = Config.load(cli_overrides=overrides)
 
@@ -285,6 +326,59 @@ def index_audio(
     typer.echo(f"Indexed {count} audio entries → {out_path}")
     if csv_path:
         typer.echo(f"CSV exported → {csv_path}")
+
+
+# ---------------------------------------------------------------------------
+# samples subgroup (M5)
+# ---------------------------------------------------------------------------
+
+@samples_app.command(name="build")
+def samples_build(
+    wav_dir: str = typer.Option(..., "--dir", "-d", help="Directory containing WAV/FLAC/OGG/AIF files."),
+    output: str = typer.Option(..., "--output", "-o", help="Output SampleManager JSON database path."),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="Force all samples to this category (beat|bass|melody|harmony). Default: infer from filename."),
+    genre: Optional[List[str]] = typer.Option(None, "--genre", "-g", help="Genre tag(s) applied to every sample (repeatable)."),
+    mood: Optional[List[str]] = typer.Option(None, "--mood", help="Mood tag(s) applied to every sample (repeatable)."),
+    tags: Optional[List[str]] = typer.Option(None, "--tag", "-t", help="Extra tag(s) applied to every sample (repeatable)."),
+    musicality: bool = typer.Option(False, "--musicality", help="Score each sample with musicality.explain() (requires musicgen[samples])."),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Walk subdirectories."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
+) -> None:
+    """Annotate a WAV directory into a SampleManager JSON library for use with --sample-db."""
+    _setup_logging(verbose, quiet)
+    from musicgen.sample_builder import build_library
+
+    wav_dir_abs = os.path.abspath(wav_dir)
+    output_abs = os.path.abspath(output)
+
+    if not os.path.isdir(wav_dir_abs):
+        typer.echo(f"Error: directory not found: {wav_dir_abs}", err=True)
+        raise typer.Exit(code=1)
+
+    if category and category not in ("beat", "bass", "melody", "harmony"):
+        typer.echo("Error: --category must be beat|bass|melody|harmony", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        count = build_library(
+            wav_dir=wav_dir_abs,
+            output=output_abs,
+            category_override=category,
+            genre=list(genre) if genre else None,
+            mood=list(mood) if mood else None,
+            tags=list(tags) if tags else None,
+            compute_musicality=musicality,
+            recursive=recursive,
+        )
+    except ImportError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+    except FileNotFoundError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Indexed {count} samples → {output_abs}")
 
 
 if __name__ == "__main__":
