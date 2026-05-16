@@ -223,8 +223,8 @@ def generate_song_arrangement(
 
         result = rng.choice(structures)
 
-        # Generate a list of unique elements in the arrangement
-        unique_elements = list(set(result))
+        # Generate a sorted list of unique elements (sorted → PYTHONHASHSEED-independent).
+        unique_elements = sorted(set(result))
 
         return unique_elements, result
 
@@ -232,7 +232,7 @@ def generate_song_arrangement(
         # Default structure in case of error
         default_structure = ['intro', 'verse', 'chorus', 'outro']
         logger.warning("Using default structure due to error", exc_info=True)
-        return list(set(default_structure)), default_structure
+        return sorted(set(default_structure)), default_structure
 
 
 def validate_measures_dict(
