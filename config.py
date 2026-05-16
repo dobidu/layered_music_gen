@@ -94,6 +94,9 @@ class Config:
     min_musicality_score: float = 0.0   # 0.0 = disabled; re-roll when score < threshold
     max_attempts: int = 1               # 1 = no re-roll; max pipeline invocations per sample
 
+    # --- sample composition (M3/M4 — optional, requires musicgen[samples]) ---
+    sample_composition: Optional["SampleCompositionConfig"] = None  # type: ignore[name-defined]
+
     _VALID_OUTPUT_MODES = frozenset({"full", "mix-only", "stems-only", "midi-only"})
 
     def __post_init__(self):

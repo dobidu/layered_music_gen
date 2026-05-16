@@ -33,7 +33,7 @@ from typing import Dict, List, Optional, Tuple
 
 from config import Config  # Re-exported from musicgen.__init__
 
-from musicgen import annotator, beats, mixer, musicality, renderer, writer
+from musicgen import annotator, beats, mixer, musicality, renderer, sample_composition, sample_mixer, writer
 from musicgen.genre import GenreSpec, resolve_genres
 from musicgen.generators.bassline import generate_bassline
 from musicgen.generators.beat import generate_beat
@@ -290,6 +290,17 @@ def _run_pipeline(
     )
     levels = _cfg.load_levels()
 
+    # M3: select real audio samples once per composition (before part loop).
+    sc_cfg = _cfg.sample_composition
+    selected_samples: dict = {}
+    if sc_cfg is not None and sc_cfg.layer_rules:
+        selected_samples = sample_composition.select_samples(
+            sc_cfg=sc_cfg,
+            composition_key=key,
+            composition_bpm=float(tempo),
+            genre=_cfg.genre,
+        )
+
     # Per-part render + mix + beat extraction.
     render_results: Dict[str, renderer.RenderResult] = {}
     mix_results: Dict[str, mixer.MixResult] = {}
@@ -317,12 +328,39 @@ def _run_pipeline(
         render_results[part] = renderer.render_stems(
             midi_paths, soundfonts, out_dir, cfg=_cfg,
         )
+
+        # M4 pre-mix: prepare sample WAVs + apply substitutions to render_result.
+        if sc_cfg is not None and selected_samples:
+            part_dur = render_results[part].duration_seconds
+            sample_wavs = sample_mixer.prepare_sample_wavs(
+                selected_samples=selected_samples,
+                layer_rules=sc_cfg.layer_rules,
+                composition_key=key,
+                composition_bpm=float(tempo),
+                part_duration_s=part_dur,
+                out_dir=out_dir,
+                allow_transpose=sc_cfg.allow_transposition,
+                allow_time_stretch=sc_cfg.allow_time_stretching,
+            )
+            render_results[part] = sample_mixer.apply_substitutions(
+                render_results[part], sample_wavs, sc_cfg.layer_rules,
+            )
+        else:
+            sample_wavs = {}
+
         mix_results[part] = mixer.mix_part(
             render_result=render_results[part], levels=levels,
             fx_boards=fx_boards, layer_mask_for_part=layer_mask[part],
             part=part, out_dir=out_dir, soundfonts=soundfonts,
             part_counter=part_counter, song_time_start=song_time_start,
         )
+
+        # M4 post-mix: overlay alongside + adlib samples on the part mix WAV.
+        if sc_cfg is not None and sample_wavs:
+            sample_mixer.apply_alongside(
+                mix_results[part].mix_path, sample_wavs, sc_cfg.layer_rules, float(tempo),
+            )
+
         stem_paths_by_part[part] = mix_results[part].stem_paths
         part_mix_paths.append(mix_results[part].mix_path)
         part_durations_s.append(render_results[part].duration_seconds)
