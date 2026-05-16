@@ -6,18 +6,19 @@ Suitable for training models that learn music tagging, source separation, beat/t
 
 ## Status
 
+- **v0.4.1 — released.** Determinism bugfix: `list(set(...))` in `sampler.generate_song_arrangement` produced a `PYTHONHASHSEED`-dependent part ordering that broke the determinism contract across process boundaries. Fixed with `sorted(set(...))`. SHA-256 goldens regenerated.
 - **v0.4.0 — released.** Sample composition: mix real audio samples alongside (or substituting) FluidSynth-rendered layers. Three-part pipeline: `SampleCompositionConfig` rules engine (M3), `SampleMixer` audio transforms — BPM stretch/key shift/loop tiling (M4), `musicgen samples build` library builder + `used_samples` annotation + `--sample-db` CLI flags (M5). `musicality` extracted as an installable standalone package (`src/musicality/`) with `score()`, `explain()`, `batch_score()` API and `musicality score|explain|batch` CLI. `musicality_score` field added to `audio_sample_manager.SampleMetadata`; `select_for_layer(min_musicality_score=)` quality-gate filter added.
 - **v0.3.0 — released.** Higher-order Markov complete: 2nd-order chord transition matrices per genre, configurable-order melody Markov over scale-degree intervals, two-layer musicality quality gate (`check_midi_quality` + audio integrity), quality-gate regeneration loop (`Config.min_musicality_score`, `Config.max_attempts`), calibration harness (`run_midi_calibration`, `suggest_threshold`). Tag `v0.3.0`.
 - **v0.2.0 — released.** Genre system complete: 8 built-in genres, `GenreSpec` composition engine, extended chord vocabulary, genre-constrained sampler/FX/soundfont selection, `list-genres` CLI, Jupyter demo notebook. Tag `v0.2.0`.
 - **v0.2 integrations — complete.** Three opt-in sibling-ecosystem integrations: SoundfontManager-backed soundfont selection, MIDI indexing, and audio stem indexing. Zero new hard dependencies.
 - **v0.1.0 — complete.** All 7 phases shipped: single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
-- **Test suite:** 1209 tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
+- **Test suite:** 1219 tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
 
 ## Core value
 
 Every generated sample is a complete, reproducible, fully-labeled training example. If the stems drift from the mix, the MIDI doesn't match the audio, the seed doesn't reproduce, or the annotations are wrong, the dataset is worthless — no matter how musical it sounds.
 
-The **determinism contract**: same `global_seed` + same `sample_index` → bit-identical MIDI and bit-identical `sample.json`, always. Bit-identical WAV when running on the same FluidSynth binary version.
+The **determinism contract**: same `global_seed` + same `sample_index` → bit-identical MIDI and bit-identical `sample.json` across any process invocation, regardless of `PYTHONHASHSEED`. Bit-identical WAV when running on the same FluidSynth binary version.
 
 ## Requirements
 
@@ -618,12 +619,12 @@ Every sample carries:
 
 ## Determinism
 
-Same global seed + same sample index → bit-identical MIDI + bit-identical canonical `sample.json` **unconditionally**. WAV bit-identity holds when the FluidSynth binary version matches.
+Same global seed + same sample index → bit-identical MIDI + bit-identical canonical `sample.json` **unconditionally**, regardless of `PYTHONHASHSEED`. WAV bit-identity holds when the FluidSynth binary version matches.
 
 A two-tier regression test enforces this:
 
-- **`tests/test_determinism_golden.py::TestDeterminismGoldens`** (`@pytest.mark.slow`) — parametrized over 6 SHA-256 artifacts (mix.wav + 4 MIDIs + canonical sample.json). Skips when FluidSynth is absent; xfails when FluidSynth version differs from the captured `tests/fixtures/determinism/fluidsynth_version.txt`. MIDI + sample.json hashes assert unconditionally.
-- **`tests/test_determinism_golden.py::TestSameProcessStability`** (fast, no FluidSynth) — runs `generate()` twice in one process and asserts `sha256(sample.json)` matches across runs. Catches our-code-nondeterminism cheaply.
+- **`tests/test_determinism_golden.py::TestDeterminismGoldens`** (`@pytest.mark.slow`) — parametrized over 6 SHA-256 artifacts (mix.wav + 4 MIDIs + canonical sample.json). Skips when FluidSynth is absent; xfails when FluidSynth version differs from the captured `tests/fixtures/determinism/fluidsynth_version.txt`. MIDI + sample.json hashes assert unconditionally across separate process invocations.
+- **`tests/test_determinism_golden.py::TestSameProcessStability`** (fast, no FluidSynth) — runs `generate()` twice in one process with monkeypatched renderer and asserts `sha256(sample.json)` matches. Catches wall-clock/entropy leaks without FluidSynth.
 
 To capture the slow goldens on a FluidSynth-equipped host:
 
