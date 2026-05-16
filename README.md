@@ -6,13 +6,14 @@ Suitable for training models that learn music tagging, source separation, beat/t
 
 ## Status
 
+- **v0.5.0 — released.** ML-assisted generators: `musicgen extract-sequences` walks a generated dataset and produces `sequences.json` (chord Roman numerals + melody scale degrees). `musicgen train --layer chord|melody` trains a 2-layer LSTM (ChordLSTM ~35 K params, MelodyLSTM ~10 K params) on that corpus and saves a `.pt` checkpoint. `musicgen generate --chord-backend neural --melody-backend neural` swaps the Markov samplers for the trained networks; determinism contract fully preserved — logits are pure (fixed weights) and sampling uses the seeded `rng.choices(tokens, weights=softmax(logits))`. Optional dependency: `pip install 'musicgen[neural]'` (`torch >= 2.0`). Falls back to Markov silently when torch is absent or no model file is found. See [`docs/neural-generators.md`](docs/neural-generators.md).
 - **v0.4.1 — released.** Determinism bugfix: `list(set(...))` in `sampler.generate_song_arrangement` produced a `PYTHONHASHSEED`-dependent part ordering that broke the determinism contract across process boundaries. Fixed with `sorted(set(...))`. SHA-256 goldens regenerated.
 - **v0.4.0 — released.** Sample composition: mix real audio samples alongside (or substituting) FluidSynth-rendered layers. Three-part pipeline: `SampleCompositionConfig` rules engine (M3), `SampleMixer` audio transforms — BPM stretch/key shift/loop tiling (M4), `musicgen samples build` library builder + `used_samples` annotation + `--sample-db` CLI flags (M5). `musicality` extracted as an installable standalone package (`src/musicality/`) with `score()`, `explain()`, `batch_score()` API and `musicality score|explain|batch` CLI. `musicality_score` field added to `audio_sample_manager.SampleMetadata`; `select_for_layer(min_musicality_score=)` quality-gate filter added.
 - **v0.3.0 — released.** Higher-order Markov complete: 2nd-order chord transition matrices per genre, configurable-order melody Markov over scale-degree intervals, two-layer musicality quality gate (`check_midi_quality` + audio integrity), quality-gate regeneration loop (`Config.min_musicality_score`, `Config.max_attempts`), calibration harness (`run_midi_calibration`, `suggest_threshold`). Tag `v0.3.0`.
 - **v0.2.0 — released.** Genre system complete: 8 built-in genres, `GenreSpec` composition engine, extended chord vocabulary, genre-constrained sampler/FX/soundfont selection, `list-genres` CLI, Jupyter demo notebook. Tag `v0.2.0`.
 - **v0.2 integrations — complete.** Three opt-in sibling-ecosystem integrations: SoundfontManager-backed soundfont selection, MIDI indexing, and audio stem indexing. Zero new hard dependencies.
 - **v0.1.0 — complete.** All 7 phases shipped: single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
-- **Test suite:** 1219 tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
+- **Test suite:** 1273 tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
 
 ## Core value
 
@@ -70,6 +71,10 @@ sf/
 # Generate 32 samples with 4 workers, seed 1
 musicgen generate --count 32 --seed 1 --out ./dataset --workers 4
 
+# Use neural chord + melody backends (requires musicgen[neural] + trained models)
+musicgen generate --count 8 --seed 1 --chord-backend neural --melody-backend neural \
+    --models-dir ./models
+
 # Mix-only mode (no stems or MIDI written)
 musicgen generate --count 32 --seed 1 --out ./dataset --output-mode mix-only
 
@@ -117,6 +122,14 @@ Output mode choices: `full` (default) | `mix-only` | `stems-only` | `midi-only`.
 | `--sample-min-score FLOAT` | `0.0` | Minimum `musicality_score` for sample selection; `0.0` disables. |
 
 **Modes:** `alongside` — sample overlaid on FluidSynth mix; `substitution` — sample replaces FluidSynth stem; `adlib` — one-shot sample placed at a specific beat offset (set `oneshot_at_beat` in the Python API).
+
+#### `generate` — neural backend options (v0.5, requires `musicgen[neural]`)
+
+| Option | Default | Description |
+|---|---|---|
+| `--chord-backend` | `markov` | Chord generation backend: `markov` \| `neural`. |
+| `--melody-backend` | `markov` | Melody generation backend: `markov` \| `neural`. |
+| `--models-dir PATH` | `<repo>/models` | Directory containing trained `.pt` model files. |
 
 #### `samples build` — build a sample library
 
@@ -212,6 +225,9 @@ python music_gen.py
 | `min_musicality_score` | `0.0` | Quality gate threshold. `0.0` disables the gate. Samples with `musicality_score < threshold` are re-generated up to `max_attempts` times. Override via `MUSICGEN_MIN_MUSICALITY_SCORE`. |
 | `max_attempts` | `1` | Maximum re-roll attempts per sample when the quality gate is active. Must be ≥ 1. Override via `MUSICGEN_MAX_ATTEMPTS`. |
 | `sample_composition` | `None` | `SampleCompositionConfig` instance enabling real audio sample mixing. `None` = pipeline unchanged. See [Sample composition (v0.4)](#sample-composition-v04). |
+| `chord_backend` | `"markov"` | Chord generation backend: `"markov"` (default, no extra deps) or `"neural"` (requires `musicgen[neural]` + trained model). Falls back to `"markov"` when model file is absent. |
+| `melody_backend` | `"markov"` | Melody generation backend: `"markov"` or `"neural"`. Same fallback semantics as `chord_backend`. |
+| `models_dir` | `<repo>/models` | Directory searched for trained `.pt` model files. Lookup order: `{layer}_{genre}.pt` → `{layer}.pt`. |
 | `sf_dir` | `<repo>/sf` | Override via `MUSICGEN_SF_DIR` env var. |
 | `soundfont_manager_db` | `None` | Path to a SoundfontManager JSON database. Set to activate metadata-aware soundfont selection (Integration 1). Override via `MUSICGEN_SOUNDFONT_MANAGER_DB`. |
 | `soundfont_manager_sf_dir` | `None` | Base directory for `.sf2` files when the SM db stores relative paths. Override via `MUSICGEN_SOUNDFONT_MANAGER_SF_DIR`. |
@@ -448,6 +464,84 @@ Ground-truth fields (`bpm`, `key`, `time_signature`, `scale`) come from `sample.
 
 ---
 
+## ML-assisted generators (v0.5)
+
+Replace the hand-crafted Markov matrices for chord and melody generation with small LSTMs trained on a self-generated corpus. Requires `pip install 'musicgen[neural]'`.
+
+### Install
+
+```bash
+pip install -e '.[neural]'
+# installs: torch >= 2.0
+```
+
+### Workflow
+
+**Step 1 — generate a training corpus with the Markov backend:**
+
+```bash
+musicgen generate --count 500 --seed 1 --out ./corpus --output-mode midi-only
+```
+
+**Step 2 — extract sequences from the corpus:**
+
+```bash
+musicgen extract-sequences --dataset ./corpus --output sequences.json
+```
+
+`sequences.json` contains chord Roman numeral sequences and melody scale-degree sequences for every sample, with genre and key metadata.
+
+**Step 3 — train models:**
+
+```bash
+# Combined model (all genres)
+musicgen train --sequences sequences.json --layer chord --output-dir ./models
+musicgen train --sequences sequences.json --layer melody --output-dir ./models
+
+# Genre-specific models (takes precedence at inference)
+musicgen train --sequences sequences.json --layer chord --genre jazz --output-dir ./models
+musicgen train --sequences sequences.json --layer melody --genre jazz --output-dir ./models
+```
+
+Produces `models/chord.pt` + `models/chord_meta.json` (and optionally `models/chord_jazz.pt` etc.). Training runs on CPU in under a minute for typical corpus sizes.
+
+**Step 4 — generate with neural backends:**
+
+```bash
+musicgen generate --count 32 --seed 1 --out ./dataset \
+    --chord-backend neural --melody-backend neural \
+    --models-dir ./models
+```
+
+At inference, `models_dir` is searched for `chord_{genre}.pt` first, then `chord.pt`. If neither is found, the Markov backend is used automatically (a warning is logged).
+
+### Python API
+
+```python
+from musicgen import generate, Config
+
+result = generate(Config(
+    global_seed=42,
+    sample_index=0,
+    dataset_root="./dataset",
+    chord_backend="neural",
+    melody_backend="neural",
+    models_dir="./models",
+    genre=["jazz"],
+))
+```
+
+### Determinism
+
+The determinism contract is preserved:
+- Model forward pass is pure (fixed weights → fixed logits given fixed input)
+- Sampling uses `rng.choices(tokens, weights=softmax(logits))` — the same seeded `random.Random` used by the Markov path
+- Same global seed + sample index → identical chord/melody sequences whether using Markov or neural backend (given the same trained model)
+
+See [`docs/neural-generators.md`](docs/neural-generators.md) for model architecture, training hyperparameters, `sequences.json` schema, and the `extract-sequences` / `train` CLI reference.
+
+---
+
 ## Sample composition (v0.4)
 
 Mix real audio samples (drum loops, synth pads, bass one-shots) alongside or instead of the FluidSynth-rendered layers. Requires `pip install 'musicgen[samples]'`.
@@ -675,6 +769,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 | v0.2 | Genre system — GenreSpec engine, 8 built-in genres, chord vocab, CLI, notebook | ✓ COMPLETE | 8/8 |
 | v0.3 | Higher-order Markov — 2nd-order chords + melody, two-layer quality gate, calibration | ✓ COMPLETE | 3/3 |
 | v0.4 | Sample composition — real audio samples alongside/substituting FluidSynth layers | ✓ COMPLETE | M1–M5 |
+| v0.5 | ML-assisted generators — corpus extractor, LSTM chord/melody models, generator integration | ✓ COMPLETE | Phase 1–4 |
 
 ### Phases delivered
 
@@ -689,6 +784,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 - **v0.2 integrations — Sibling ecosystem.** Three opt-in integrations with zero new hard deps. (1) `soundfont_manager`: tag-based soundfont selection via `Config.soundfont_manager_db`; determinism preserved via `sf.path`-sorted candidates. (2) `midi_file_manager`: `musicgen index-midi` command indexes MIDI files into a `MidiManager` db with ground-truth enrichment. (3) `audio_sample_manager`: `musicgen index-audio` command indexes WAV stems into a `SampleManager` db for cross-library queries. All packages lazy-imported; `ImportError` falls back gracefully.
 - **v0.2 — Genre system.** `GenreSpec` dataclass with hard bounds (tempo, swing), soft weight dicts (time-sig, scale, chord type, inversion, layer probs), FX profile multipliers, and per-layer soundfont tag overrides. `merge_genres` composition algebra (range intersection, weighted-average soft dicts, union of drum pools). 8 built-in genres (`jazz`, `hip-hop`, `blues`, `pop`, `electronic`, `latin`, `reggae`, `classical`), each with `spec.json` + time-sig drum pattern files. Extended chord vocabulary (maj7, m7, dom7, dim7, m7b5, sus2, sus4, add9, aug + all inversions). CLI: `--genre jazz`, `--genre jazz --genre latin`, `musicgen list-genres`. `notebooks/musicgen_demo.ipynb` 12-section demo notebook. Tag `v0.2.0`.
 - **v0.4 — Sample composition.** Five milestones: (M1) `musicality` extracted as a standalone installable package (`src/musicality/`) with `score()`, `explain()`, `batch_score()` public API and `musicality score|explain|batch` CLI — usable on any WAV without musicgen. (M2) `musicality_score` + `musicality_components` fields added to `audio_sample_manager.SampleMetadata`; `annotate_sample(compute_musicality=True)` invokes scoring; `select_for_layer(min_musicality_score=)` quality-gate filter added. (M3) `SampleLayerRule` + `SampleCompositionConfig` rules engine wired as `Config.sample_composition`; `select_samples()` calls `SampleSelector` per layer. (M4) `sample_mixer.py`: per-part BPM stretch (rubberband), key shift (librosa), loop tiling (numpy), pre-mix substitution hook, post-mix alongside/adlib overlay. (M5) `musicgen samples build` CLI command for batch WAV annotation → library JSON; `used_samples` provenance field in `sample.json`; `--sample-db / --sample-LAYER / --sample-gain / --sample-min-score` flags on `musicgen generate`. Requires `pip install 'musicgen[samples]'`.
+- **v0.5 — ML-assisted generators.** Three phases: (Phase 1) `corpus_extractor.py` walks a musicgen dataset, reads `sample.json` chord progressions (Roman numerals) and parses melody MIDI via mido to extract scale-degree sequences; outputs `sequences.json` with genre/key metadata. CLI: `musicgen extract-sequences`. (Phase 2) `neural/` package (optional, `torch >= 2.0`): `ChordLSTM` (~35 K params, 2-layer LSTM + genre one-hot, hidden=64), `MelodyLSTM` (~10 K params, hidden=32), `NeuralSampler` dataclass. `train()` runs Adam + CrossEntropyLoss with patience-based early stopping on a 90/10 train/val split; `save_model()` writes `.pt` checkpoint + `_meta.json`; `load_model()` returns `None` gracefully on missing file or absent torch. CLI: `musicgen train`. (Phase 3) Generator integration: `Config` gains `chord_backend` / `melody_backend` / `models_dir` fields; `generate_chord_progression` and `generate_melody` accept `cfg=` kwarg; process-lifetime dict cache avoids repeated disk reads; missing model → Markov fallback with warning. CLI: `--chord-backend neural --melody-backend neural --models-dir` on `musicgen generate`. Determinism contract preserved: logits are pure → fixed given weights + input; sampling via seeded `rng.choices`. 45 new tests. Requires `pip install 'musicgen[neural]'`.
 - **v0.3 — Higher-order Markov + quality gate.** 2nd-order chord transition matrices per genre (`genres/*/chord_transitions.json`), configurable-order melody Markov over scale-degree intervals (`generators/melody.py`). Two-layer musicality redesign: Layer 1 MIDI pre-filter (`check_midi_quality` — hard checks for empty/stuck/extreme-range + soft symbolic metrics: Krumhansl–Schmuckler key correlation, scale adherence, melodic step fraction, n-gram entropy, LZ compression ratio); Layer 2 audio integrity (`_render_integrity` — clipping, DC offset, silence, crest factor, applied as penalty to `MusicalityAnalyzer` output). Quality-gate regeneration loop: `Config.min_musicality_score` + `Config.max_attempts` — `generate()` re-rolls up to `max_attempts` times with distinct seeds; `SampleResult.attempt` and `manifest attempt` field track winning attempt. Calibration harness (`musicgen.calibrate.run_midi_calibration`, `suggest_threshold`) derives empirical thresholds from reference-good vs adversarial MIDI sets without human labels. See [`docs/musicality-scoring.md`](docs/musicality-scoring.md) for theoretical basis and implementation details. 1197 fast tests. Tag `v0.3.0`.
 
 ## Architecture (post-Phase 5)
@@ -705,10 +801,16 @@ src/musicgen/
 ├── genre.py             # GenreSpec dataclass, load_genre, merge_genres, resolve_genres
 ├── sampler.py           # SongParams + key/tempo/time-sig/swing/measures/arrangement; genre-constrained draws
 ├── generators/
-│   ├── chord.py         # generate_chord_progression; extended types (maj7/m7/dom7/dim7/sus/add9/aug) + inversions
-│   ├── melody.py        # generate_melody (Markov-style over chord progressions)
+│   ├── chord.py         # generate_chord_progression; Markov/neural backends; extended chord vocab
+│   ├── melody.py        # generate_melody; Markov/neural backends; scale-degree path
 │   ├── bassline.py      # generate_bassline (keyed to chords + melody)
 │   └── beat.py          # generate_beat (drum patterns + swing offset); genre pattern union
+├── neural/              # v0.5 optional package — requires musicgen[neural] (torch)
+│   ├── __init__.py      # HAS_TORCH flag
+│   ├── model.py         # ChordLSTM, MelodyLSTM, NeuralSampler dataclass
+│   ├── trainer.py       # train(), save_model(), load_model()
+│   └── sampler.py       # sample_chord_neural(), sample_melody_neural()
+├── corpus_extractor.py  # extract_sequences() — walk dataset → sequences.json
 ├── renderer.py          # FluidSynth wrapper, ThreadPoolExecutor stem rendering; genre + SM-backed soundfont selection
 ├── mixer.py             # FX (pedalboard), pydub overlay, layer mask, part concat; genre FX profile
 ├── beats.py             # MIDI-tick beat + downbeat extraction (mido), swing-aware
@@ -725,7 +827,8 @@ Pipeline flow inside `generate(config)`:
 
 ```
 resolve_genre_spec → sampler (genre-constrained draws)
-       → generators (chord/melody/bassline/beat, genre pattern pool)
+       → generators (chord: neural LSTM or Markov; melody: neural LSTM or Markov or chord-pitch;
+                     bassline/beat: Markov + genre pattern pool)
        → check_midi_quality (Layer 1: hard + soft symbolic checks, < 5 ms)
        → [re-roll up to max_attempts if score < min_musicality_score]
        → renderer (FluidSynth, parallel stems, genre soundfont tags)
@@ -742,7 +845,6 @@ resolve_genre_spec → sampler (genre-constrained draws)
 
 ## Roadmap — upcoming
 
-- **v0.4 — ML-assisted generators:** ML-guided chord/melody generation trained on real MIDI corpora, model-guided regeneration. Requires a reference dataset generated with the v0.3 stack as training corpus.
 - **Public release:** soundfont license audit + CC0/MIT replacement, HuggingFace Datasets / WebDataset exporters, sharded directory layout for 100k+ samples.
 
 Not planned: cloud / distributed generation, web UI, HTTP API.
