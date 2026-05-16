@@ -88,6 +88,10 @@ def generate(
     sample_harmony: str = typer.Option("off", "--sample-harmony", help="Harmony layer sample mode: alongside|substitution|adlib|off."),
     sample_gain: float = typer.Option(-3.0, "--sample-gain", help="Gain (dB) applied to all sample layers."),
     sample_min_score: float = typer.Option(0.0, "--sample-min-score", help="Min musicality score for sample selection (0=disabled)."),
+    # Neural backend flags (v0.5)
+    chord_backend: str = typer.Option("markov", "--chord-backend", help="Chord generation backend: markov | neural."),
+    melody_backend: str = typer.Option("markov", "--melody-backend", help="Melody generation backend: markov | neural."),
+    models_dir: Optional[str] = typer.Option(None, "--models-dir", help="Directory containing trained .pt model files."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
 ) -> None:
@@ -112,6 +116,12 @@ def generate(
         overrides["genre"] = list(genre)
     if genres_dir:
         overrides["genres_dir"] = os.path.abspath(genres_dir)
+    if chord_backend != "markov":
+        overrides["chord_backend"] = chord_backend
+    if melody_backend != "markov":
+        overrides["melody_backend"] = melody_backend
+    if models_dir:
+        overrides["models_dir"] = os.path.abspath(models_dir)
 
     # Build SampleCompositionConfig if --sample-db is set.
     if sample_db:
@@ -379,6 +389,95 @@ def samples_build(
         raise typer.Exit(code=1)
 
     typer.echo(f"Indexed {count} samples → {output_abs}")
+
+
+# ---------------------------------------------------------------------------
+# extract-sequences (v0.5 Phase 1)
+# ---------------------------------------------------------------------------
+
+@app.command(name="extract-sequences")
+def extract_sequences_cmd(
+    dataset: str = typer.Option(..., "--dataset", "-d", help="musicgen dataset root directory."),
+    output: str = typer.Option(..., "--output", "-o", help="Output sequences JSON path."),
+    min_musicality: float = typer.Option(0.0, "--min-musicality", help="Skip samples below this musicality score (0=keep all)."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
+) -> None:
+    """Extract chord and melody token sequences from a musicgen dataset for neural training."""
+    _setup_logging(verbose, quiet)
+    from musicgen.corpus_extractor import extract_sequences
+
+    dataset_abs = os.path.abspath(dataset)
+    output_abs = os.path.abspath(output)
+
+    if not os.path.isdir(dataset_abs):
+        typer.echo(f"Error: dataset directory not found: {dataset_abs}", err=True)
+        raise typer.Exit(code=1)
+
+    counts = extract_sequences(
+        dataset_root=dataset_abs,
+        output_path=output_abs,
+        min_musicality=min_musicality,
+    )
+    typer.echo(
+        f"Extracted {counts['chord']} chord sequences, "
+        f"{counts['melody']} melody sequences → {output_abs}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# train (v0.5 Phase 2)
+# ---------------------------------------------------------------------------
+
+@app.command(name="train")
+def train_cmd(
+    sequences: str = typer.Option(..., "--sequences", "-s", help="sequences.json produced by extract-sequences."),
+    layer: str = typer.Option(..., "--layer", "-l", help="Layer to train: chord | melody."),
+    genre: Optional[List[str]] = typer.Option(None, "--genre", "-g", help="Filter to these genre(s) (repeatable). Default: all genres."),
+    epochs: int = typer.Option(200, "--epochs", "-e", help="Max training epochs."),
+    output_dir: str = typer.Option("./models", "--output-dir", "-o", help="Directory to write .pt model files."),
+    seed: int = typer.Option(42, "--seed", help="Reproducibility seed for training."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose (DEBUG) logging."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Quiet (ERROR-only) logging."),
+) -> None:
+    """Train a neural chord or melody LSTM on sequences extracted from a musicgen dataset."""
+    _setup_logging(verbose, quiet)
+
+    if layer not in ("chord", "melody"):
+        typer.echo("Error: --layer must be 'chord' or 'melody'", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        from musicgen.neural.trainer import train, save_model
+    except ImportError as exc:
+        typer.echo(f"Error: torch not installed — run: pip install 'musicgen[neural]'\n{exc}", err=True)
+        raise typer.Exit(code=1)
+
+    sequences_abs = os.path.abspath(sequences)
+    output_dir_abs = os.path.abspath(output_dir)
+
+    if not os.path.isfile(sequences_abs):
+        typer.echo(f"Error: sequences file not found: {sequences_abs}", err=True)
+        raise typer.Exit(code=1)
+
+    genre_filter = list(genre) if genre else None
+    model_name = f"{layer}{'_' + '_'.join(sorted(genre_filter)) if genre_filter else ''}.pt"
+    model_path = os.path.join(output_dir_abs, model_name)
+
+    try:
+        sampler = train(
+            sequences_path=sequences_abs,
+            layer=layer,
+            genres=genre_filter,
+            epochs=epochs,
+            seed=seed,
+        )
+    except (ValueError, ImportError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    save_model(sampler, model_path)
+    typer.echo(f"Trained {layer} model → {model_path}")
 
 
 if __name__ == "__main__":

@@ -22,7 +22,39 @@ Design:
 import logging
 import os
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    from musicgen.neural.sampler import sample_chord_neural as _sample_chord_neural
+    _HAS_NEURAL_CHORD = True
+except ImportError:
+    _HAS_NEURAL_CHORD = False
+
+# path → NeuralSampler | None — filled lazily, process-lifetime cache
+_chord_model_cache: Dict[str, Any] = {}
+
+
+def _get_chord_model(models_dir: str, genre: Optional[List[str]]) -> Any:
+    """Return a cached NeuralSampler for the chord layer, or None."""
+    try:
+        from musicgen.neural.trainer import load_model
+    except ImportError:
+        return None
+    genre_str = genre[0] if genre else None
+    candidates: List[str] = []
+    if genre_str:
+        candidates.append(os.path.join(models_dir, f"chord_{genre_str}.pt"))
+    candidates.append(os.path.join(models_dir, "chord.pt"))
+    for path in candidates:
+        if path in _chord_model_cache:
+            return _chord_model_cache[path]
+        if os.path.exists(path):
+            sampler = load_model(path)
+            _chord_model_cache[path] = sampler
+            return sampler
+    # Cache miss — record so we don't hit disk again
+    _chord_model_cache[candidates[-1]] = None
+    return None
 
 from midiutil import MIDIFile
 from music21 import roman, scale, pitch  # Plan 01-03 narrow-import commitment (S3)
@@ -229,6 +261,7 @@ def generate_chord_progression(
     pattern_file: str,
     rng: random.Random,
     genre_spec=None,
+    cfg=None,
 ) -> Tuple[List[str], str]:
     """Generate a chord progression MIDI file for one song part.
 
@@ -264,10 +297,37 @@ def generate_chord_progression(
             f"Invalid chord duration calculated for time signature {time_signature}"
         )
 
+    # Neural path: cfg.chord_backend == "neural" and model is available.
+    _neural_active = (
+        _HAS_NEURAL_CHORD
+        and cfg is not None
+        and getattr(cfg, "chord_backend", "markov") == "neural"
+    )
+    _neural_sampler = None
+    if _neural_active:
+        _neural_sampler = _get_chord_model(
+            getattr(cfg, "models_dir", "models"),
+            list(cfg.genre) if cfg.genre else None,
+        )
+        if _neural_sampler is None:
+            logger.warning("chord neural model not found — falling back to Markov/pattern")
+            _neural_active = False
+
+    if _neural_active and _neural_sampler is not None:
+        chord_pattern: List[str] = []
+        genre_list = list(cfg.genre) if cfg.genre else None
+        for _ in range(measures):
+            chord_symbol = _sample_chord_neural(chord_pattern, genre_list, _neural_sampler, rng)
+            chord_pattern.append(chord_symbol)
+            chord_type = _pick_chord_type(rng, chord_symbol, genre_spec)
+            inversion = _pick_inversion(rng, genre_spec)
+            notes = _build_chord_voicing(chord_symbol.strip(), chord_type, inversion, key)
+            for note in notes:
+                mf.addNote(track, 0, note, len(chord_pattern) - 1, chord_duration, 100)
+        current_time = measures * chord_duration
     # Markov path: genre_spec has a chord_transition_matrix — generate one
     # chord per measure via Markov sampling; skip pattern file entirely.
-    matrix = getattr(genre_spec, "chord_transition_matrix", None) if genre_spec is not None else None
-    if matrix is not None:
+    elif (matrix := getattr(genre_spec, "chord_transition_matrix", None) if genre_spec is not None else None) is not None:
         chord_pattern: List[str] = []
         for _ in range(measures):
             chord_symbol = _sample_chord_markov(chord_pattern, matrix, rng)

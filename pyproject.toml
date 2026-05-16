@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "musicgen"
-version = "0.3.0"              # R-Q4
+version = "0.5.0"              # R-Q4
 description = "Synthetic music dataset generator for ML training"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -41,6 +41,10 @@ samples = [
     "audio-sample-manager @ git+https://github.com/dobidu/audio_sample_manager",
     "soundfile>=0.12.1",
     "rubberband-stretch>=0.1; platform_system != 'Windows'",
+]
+# pip install musicgen[neural]  — enables neural chord/melody backends (v0.5)
+neural = [
+    "torch>=2.0",
 ]
 
 [project.scripts]

@@ -420,6 +420,7 @@ def _run_pipeline(
         musicgen_version=MUSICGEN_VERSION,
         split=split,
         pre_roll_offset_seconds=pre_roll_offset_s,
+        genre=list(_cfg.genre) if _cfg.genre else None,
     )
 
     # M5: record which real audio samples were mixed in (provenance).
@@ -499,13 +500,13 @@ def _generate_all_midi(
 
         chord_progression, harm_filename[part] = generate_chord_progression(
             key, tempo, time_signature, part_measures, name_part, part,
-            chord_pat_file, rngs[RNG_GENERATORS], genre_spec=genre_spec,
+            chord_pat_file, rngs[RNG_GENERATORS], genre_spec=genre_spec, cfg=cfg,
         )
         chord_progressions[part] = list(chord_progression)
 
         melody, melo_filename[part] = generate_melody(
             key, tempo, time_signature, part_measures, name_part, part,
-            chord_progression, rngs[RNG_GENERATORS], genre_spec=genre_spec,
+            chord_progression, rngs[RNG_GENERATORS], genre_spec=genre_spec, cfg=cfg,
         )
 
         bass_filename[part] = generate_bassline(

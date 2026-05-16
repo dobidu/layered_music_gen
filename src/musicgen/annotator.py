@@ -93,6 +93,7 @@ def annotate(
     split: Optional[str] = None,
     analysis_failed: Optional[bool] = None,
     pre_roll_offset_seconds: Optional[float] = None,
+    genre: Optional[List[str]] = None,
 ) -> dict:
     """Produce the R-P4 annotation dict for one sample (Phase 4 subset, D-15/D-16).
 
@@ -172,6 +173,7 @@ def annotate(
         "musicgen_version": musicgen_version,
         "split": split,
         "pre_roll_offset_seconds": pre_roll_offset_seconds,  # R-P9 Phase 6
+        "genre": sorted(genre) if genre else None,
     }
 
     # D-16 clarification: analysis_failed is OMITTED on success, only present

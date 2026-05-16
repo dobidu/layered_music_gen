@@ -14,9 +14,37 @@ Design:
 import logging
 import os
 import random
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from typing import Dict, Optional
+try:
+    from musicgen.neural.sampler import sample_melody_neural as _sample_melody_neural
+    _HAS_NEURAL_MELODY = True
+except ImportError:
+    _HAS_NEURAL_MELODY = False
+
+_melody_model_cache: Dict[str, Any] = {}
+
+
+def _get_melody_model(models_dir: str, genre: Optional[List[str]]) -> Any:
+    """Return a cached NeuralSampler for the melody layer, or None."""
+    try:
+        from musicgen.neural.trainer import load_model
+    except ImportError:
+        return None
+    genre_str = genre[0] if genre else None
+    candidates: List[str] = []
+    if genre_str:
+        candidates.append(os.path.join(models_dir, f"melody_{genre_str}.pt"))
+    candidates.append(os.path.join(models_dir, "melody.pt"))
+    for path in candidates:
+        if path in _melody_model_cache:
+            return _melody_model_cache[path]
+        if os.path.exists(path):
+            sampler = load_model(path)
+            _melody_model_cache[path] = sampler
+            return sampler
+    _melody_model_cache[candidates[-1]] = None
+    return None
 
 from midiutil import MIDIFile
 from music21 import roman, scale, pitch  # Plan 01-03 narrow-import commitment (S3)
@@ -111,6 +139,7 @@ def generate_melody(
     chord_progression: List[str],
     rng: random.Random,
     genre_spec=None,
+    cfg=None,
 ) -> Tuple[List[int], str]:
     """Generate a melody based on key, tempo, chord progression and time signature.
 
@@ -138,16 +167,56 @@ def generate_melody(
     beats_per_measure = numerator * base_duration
     total_beats = measures * beats_per_measure
 
+    # Neural path: cfg.melody_backend == "neural" and model is available.
+    _neural_active = (
+        _HAS_NEURAL_MELODY
+        and cfg is not None
+        and getattr(cfg, "melody_backend", "markov") == "neural"
+    )
+    _neural_sampler = None
+    if _neural_active:
+        _neural_sampler = _get_melody_model(
+            getattr(cfg, "models_dir", "models"),
+            list(cfg.genre) if cfg.genre else None,
+        )
+        if _neural_sampler is None:
+            logger.warning("melody neural model not found — falling back to Markov/chord-pitch")
+            _neural_active = False
+
     matrix = getattr(genre_spec, "melody_transition_matrix", None) if genre_spec is not None else None
 
-    if matrix is not None:
+    if _neural_active and _neural_sampler is not None:
+        # v0.5 neural scale-degree path.
+        melody: List[int] = []
+        note_durations: List[float] = []
+        total_beats_neural = measures * validator._analyze_time_signature(time_signature).beats_per_measure
+        remaining_beats = total_beats_neural
+        degree_history: List[str] = []
+        reference_midi = 60
+        genre_list = list(cfg.genre) if cfg.genre else None
+
+        while remaining_beats > 0:
+            degree = _sample_melody_neural(degree_history, genre_list, _neural_sampler, rng)
+            degree_history.append(degree)
+            midi_note = _degree_to_midi(degree, key, reference_midi)
+            reference_midi = midi_note
+
+            raw_duration = rng.choice(list(spec.melody_duration_candidates))
+            duration = validator.get_valid_duration(
+                raw_duration, time_signature, remaining_beats, "melody"
+            )
+            melody.append(midi_note)
+            note_durations.append(duration)
+            remaining_beats -= duration
+
+        possible_durations = list(spec.melody_duration_candidates)
+    elif matrix is not None:
         # v0.3 Phase 2 — scale-degree Markov path (key-agnostic, zero-weight-free).
         melody: List[int] = []
         note_durations: List[float] = []
-        total_beats = measures * validator._analyze_time_signature(time_signature).beats_per_measure
-        remaining_beats = total_beats
+        remaining_beats = measures * validator._analyze_time_signature(time_signature).beats_per_measure
         degree_history: List[str] = []
-        reference_midi = 60  # track pitch continuity across notes
+        reference_midi = 60
 
         while remaining_beats > 0:
             degree = _sample_melody_markov(degree_history, matrix, rng)
@@ -190,10 +259,6 @@ def generate_melody(
             for chord in chords:
                 notes_to_use.extend(chord.pitches)
 
-        # Compare by pitch class (midi % 12) to avoid music21 octave-sensitive
-        # Pitch equality causing all-zero weight rows. chord_obj is the last
-        # chord; using pitch classes ensures intro/outro notes (from chords[0]
-        # or chords[-1]) still find matches even across octave differences.
         chord_pcs = {p.midi % 12 for p in chord_obj.pitches}
         n_notes = len(notes_to_use)
         transition_matrix = {}
@@ -207,17 +272,13 @@ def generate_melody(
 
         melody = []
         note_durations = []
-        total_beats = measures * validator._analyze_time_signature(time_signature).beats_per_measure
-        remaining_beats = total_beats
-
+        remaining_beats = measures * validator._analyze_time_signature(time_signature).beats_per_measure
         current_note = rng.choice([note.midi for note in notes_to_use])
 
         possible_durations = list(spec.melody_duration_candidates)
         while remaining_beats > 0:
             weights = list(transition_matrix[current_note].values())
             if not any(weights):
-                # All weights zero (degenerate chord — no shared pitch classes):
-                # fall back to uniform so the loop never raises.
                 weights = [1.0] * len(weights)
             current_note = rng.choices(
                 population=list(transition_matrix[current_note].keys()),

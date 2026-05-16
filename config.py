@@ -97,6 +97,11 @@ class Config:
     # --- sample composition (M3/M4 — optional, requires musicgen[samples]) ---
     sample_composition: Optional["SampleCompositionConfig"] = None  # type: ignore[name-defined]
 
+    # --- neural backends (v0.5 — optional, requires musicgen[neural]) ---
+    chord_backend: str = "markov"   # "markov" | "neural"
+    melody_backend: str = "markov"  # "markov" | "neural"
+    models_dir: str = field(default_factory=lambda: os.path.join(DEFAULT_PROJECT_ROOT, "models"))
+
     _VALID_OUTPUT_MODES = frozenset({"full", "mix-only", "stems-only", "midi-only"})
 
     def __post_init__(self):
@@ -119,6 +124,11 @@ class Config:
             raise ValueError(f"count must be >= 1, got {self.count}")
         if self.max_attempts < 1:
             raise ValueError(f"max_attempts must be >= 1, got {self.max_attempts}")
+        _VALID_BACKENDS = frozenset({"markov", "neural"})
+        if self.chord_backend not in _VALID_BACKENDS:
+            raise ValueError(f"chord_backend must be 'markov' or 'neural', got {self.chord_backend!r}")
+        if self.melody_backend not in _VALID_BACKENDS:
+            raise ValueError(f"melody_backend must be 'markov' or 'neural', got {self.melody_backend!r}")
 
     def sf_layer_dir(self, layer: str) -> str:
         """Return the on-disk directory for a single soundfont layer."""
