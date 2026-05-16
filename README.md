@@ -6,11 +6,12 @@ Suitable for training models that learn music tagging, source separation, beat/t
 
 ## Status
 
+- **v0.4.0 — released.** Sample composition: mix real audio samples alongside (or substituting) FluidSynth-rendered layers. Three-part pipeline: `SampleCompositionConfig` rules engine (M3), `SampleMixer` audio transforms — BPM stretch/key shift/loop tiling (M4), `musicgen samples build` library builder + `used_samples` annotation + `--sample-db` CLI flags (M5). `musicality` extracted as an installable standalone package (`src/musicality/`) with `score()`, `explain()`, `batch_score()` API and `musicality score|explain|batch` CLI. `musicality_score` field added to `audio_sample_manager.SampleMetadata`; `select_for_layer(min_musicality_score=)` quality-gate filter added.
 - **v0.3.0 — released.** Higher-order Markov complete: 2nd-order chord transition matrices per genre, configurable-order melody Markov over scale-degree intervals, two-layer musicality quality gate (`check_midi_quality` + audio integrity), quality-gate regeneration loop (`Config.min_musicality_score`, `Config.max_attempts`), calibration harness (`run_midi_calibration`, `suggest_threshold`). Tag `v0.3.0`.
 - **v0.2.0 — released.** Genre system complete: 8 built-in genres, `GenreSpec` composition engine, extended chord vocabulary, genre-constrained sampler/FX/soundfont selection, `list-genres` CLI, Jupyter demo notebook. Tag `v0.2.0`.
 - **v0.2 integrations — complete.** Three opt-in sibling-ecosystem integrations: SoundfontManager-backed soundfont selection, MIDI indexing, and audio stem indexing. Zero new hard dependencies.
 - **v0.1.0 — complete.** All 7 phases shipped: single-sample library API, parallel batch runner, full `typer` CLI, FluidSynth pre-roll calibration, resumability, output-mode routing, deterministic seed propagation, sum-of-stems integrity, manifest tracking, train/valid/test split.
-- **Test suite:** 1197 fast tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
+- **Test suite:** 1209 tests passing (`pytest -m "not slow"`); slow FluidSynth-gated tests collected separately under `pytest -m slow`.
 
 ## Core value
 
@@ -77,8 +78,15 @@ musicgen generate --count 8 --seed 1 --genre jazz
 # Compose two genres (parameters merged)
 musicgen generate --count 8 --seed 1 --genre jazz --genre latin
 
+# Generate with real audio samples mixed in (requires musicgen[samples])
+musicgen generate --count 8 --seed 1 --sample-db ./library.json \
+    --sample-beat alongside --sample-bassline substitution --sample-gain -6
+
 # List available genre presets
 musicgen list-genres
+
+# Build a sample library from a WAV directory (requires musicgen[samples])
+musicgen samples build --dir ./my_samples --output library.json --musicality --recursive
 
 # Clean up failed partial sample directories
 musicgen clean --failed --out ./dataset
@@ -94,6 +102,38 @@ musicgen index-audio --dataset ./dataset --out ./audio_db.json
 ```
 
 Output mode choices: `full` (default) | `mix-only` | `stems-only` | `midi-only`.
+
+#### `generate` — sample composition options (v0.4, requires `musicgen[samples]`)
+
+| Option | Default | Description |
+|---|---|---|
+| `--sample-db PATH` | `None` | SampleManager JSON library. Setting this enables sample composition. |
+| `--sample-beat MODE` | `alongside` | Mix mode for the beat layer: `alongside` \| `substitution` \| `adlib` \| `off`. |
+| `--sample-bassline MODE` | `alongside` | Mix mode for the bassline layer. |
+| `--sample-melody MODE` | `off` | Mix mode for the melody layer. |
+| `--sample-harmony MODE` | `off` | Mix mode for the harmony layer. |
+| `--sample-gain DB` | `-3.0` | Gain (dB) applied to all sample layers before mixing. |
+| `--sample-min-score FLOAT` | `0.0` | Minimum `musicality_score` for sample selection; `0.0` disables. |
+
+**Modes:** `alongside` — sample overlaid on FluidSynth mix; `substitution` — sample replaces FluidSynth stem; `adlib` — one-shot sample placed at a specific beat offset (set `oneshot_at_beat` in the Python API).
+
+#### `samples build` — build a sample library
+
+```bash
+musicgen samples build --dir ./drums --output drums.json --category beat --genre hip-hop
+musicgen samples build --dir ./loops --output loops.json --musicality --recursive
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--dir PATH` | (required) | Directory of audio files (WAV/FLAC/OGG/AIF/MP3). |
+| `--output PATH` | (required) | Destination SampleManager JSON file. |
+| `--category` | auto | Force category for all samples: `beat` \| `bass` \| `melody` \| `harmony`. Default: infer from filename. |
+| `--genre TAG` | `None` | Genre tag applied to all samples (repeatable). |
+| `--mood TAG` | `None` | Mood tag applied to all samples (repeatable). |
+| `--tag TAG` | `None` | Extra tag applied to all samples (repeatable). |
+| `--musicality` | `False` | Score each sample with `musicality.explain()`. Slower but enables `--sample-min-score` filtering. |
+| `--recursive` | `False` | Walk subdirectories. |
 
 #### `index-midi` options
 
@@ -170,6 +210,7 @@ python music_gen.py
 | `output_mode` | `"full"` | `full` / `mix-only` / `stems-only` / `midi-only`. Override via `MUSICGEN_OUTPUT_MODE`. |
 | `min_musicality_score` | `0.0` | Quality gate threshold. `0.0` disables the gate. Samples with `musicality_score < threshold` are re-generated up to `max_attempts` times. Override via `MUSICGEN_MIN_MUSICALITY_SCORE`. |
 | `max_attempts` | `1` | Maximum re-roll attempts per sample when the quality gate is active. Must be ≥ 1. Override via `MUSICGEN_MAX_ATTEMPTS`. |
+| `sample_composition` | `None` | `SampleCompositionConfig` instance enabling real audio sample mixing. `None` = pipeline unchanged. See [Sample composition (v0.4)](#sample-composition-v04). |
 | `sf_dir` | `<repo>/sf` | Override via `MUSICGEN_SF_DIR` env var. |
 | `soundfont_manager_db` | `None` | Path to a SoundfontManager JSON database. Set to activate metadata-aware soundfont selection (Integration 1). Override via `MUSICGEN_SOUNDFONT_MANAGER_DB`. |
 | `soundfont_manager_sf_dir` | `None` | Base directory for `.sf2` files when the SM db stores relative paths. Override via `MUSICGEN_SOUNDFONT_MANAGER_SF_DIR`. |
@@ -406,6 +447,134 @@ Ground-truth fields (`bpm`, `key`, `time_signature`, `scale`) come from `sample.
 
 ---
 
+## Sample composition (v0.4)
+
+Mix real audio samples (drum loops, synth pads, bass one-shots) alongside or instead of the FluidSynth-rendered layers. Requires `pip install 'musicgen[samples]'`.
+
+### Install
+
+```bash
+pip install -e '.[samples]'
+# installs: audio-sample-manager, soundfile, rubberband-stretch (Linux/macOS only)
+```
+
+BPM time-stretching uses `rubberband-stretch`. Key transposition uses `librosa` (already a core dependency). Both degrade gracefully when unavailable — a warning is logged and the original audio is used.
+
+### Workflow
+
+**Step 1 — build a sample library:**
+
+```bash
+# Auto-detect category from filename, score each sample with musicality
+musicgen samples build --dir ./my_drums --output drums.json --musicality
+
+# Force a category, add genre + mood tags
+musicgen samples build --dir ./bass_loops --output bass.json \
+    --category bass --genre electronic --mood dark --recursive
+```
+
+**Step 2 — generate with sample composition:**
+
+```bash
+# Beat layer: real audio; bassline: real audio; melody/harmony: FluidSynth only
+musicgen generate --seed 42 --count 10 --out ./dataset \
+    --sample-db drums.json \
+    --sample-beat alongside \
+    --sample-bassline alongside \
+    --sample-gain -6 \
+    --sample-min-score 0.65
+```
+
+### Mixing modes
+
+| Mode | Behaviour |
+|---|---|
+| `alongside` | Sample overlaid on the FluidSynth-rendered mix (additive). Use for layering real drums over synth beats. |
+| `substitution` | Sample replaces the FluidSynth stem before mixing. Use when you want only the real audio for a layer. |
+| `adlib` | One-shot sample placed at a specific beat offset. Use for fills, hits, or accent samples. Requires `oneshot_at_beat` in Python API. |
+| `off` | Layer uses FluidSynth only (default for `melody` and `harmony`). |
+
+### Python API
+
+```python
+from musicgen import generate, Config
+from musicgen.sample_composition import SampleLayerRule, SampleCompositionConfig
+
+cfg = Config(
+    global_seed=42,
+    sample_index=0,
+    dataset_root="./dataset",
+    sample_composition=SampleCompositionConfig(
+        sample_db_path="./library.json",
+        layer_rules={
+            "beat": SampleLayerRule(
+                layer="beat",
+                mode="alongside",
+                gain_db=-6.0,
+                max_bpm_stretch_pct=15.0,   # reject if BPM requires >15% stretch
+                min_musicality_score=0.65,  # per-layer quality gate
+                genre=["hip-hop"],
+            ),
+            "bassline": SampleLayerRule(
+                layer="bassline",
+                mode="substitution",
+                gain_db=-3.0,
+            ),
+        },
+        global_min_musicality=0.50,     # fallback when per-layer min not set
+        allow_transposition=True,       # pitch-shift samples to match composition key
+        allow_time_stretching=True,     # stretch samples to match composition BPM
+    ),
+)
+
+result = generate(cfg)
+```
+
+### Sample selection
+
+For each active layer rule, `SampleSelector.select_for_layer()` is called once per composition (before the part loop) with:
+- `key` / `bpm` from the generated composition parameters
+- `genre`, `mood`, `tags` from the layer rule (falling back to `Config.genre`)
+- `min_musicality_score` from the rule or `global_min_musicality`
+- `max_bpm_stretch_pct`: samples whose BPM would require more stretch than this threshold are skipped
+
+The same sample instance is tiled/looped for every part of the arrangement.
+
+### Category auto-detection (`musicgen samples build`)
+
+When `--category` is not set, category is inferred from filename keywords (first match wins):
+
+| Category | Keywords |
+|---|---|
+| `beat` | beat, kick, hat, snare, drum, perc, clap, hh, hihat, cyma, ride |
+| `bass` | bass, sub |
+| `harmony` | pad, chord, harm, atmo, ambient, strings, vox, choir, keys, piano, organ |
+| `melody` | lead, melody, lick, riff, synth, arp, melo, hook *(also: default fallback)* |
+
+### Sample usage in `sample.json`
+
+When sample composition is active, each `sample.json` gains a `used_samples` key:
+
+```json
+"used_samples": {
+  "beat": {
+    "id": 1,
+    "name": "kick_120_Gm",
+    "path": "/samples/drums/kick_120_Gm.wav",
+    "bpm": 120.0,
+    "key": "G",
+    "category": "beat",
+    "musicality_score": 0.82,
+    "mode": "alongside"
+  },
+  "bassline": { ... }
+}
+```
+
+See [`docs/sample-composition.md`](docs/sample-composition.md) for the full reference.
+
+---
+
 ## Per-sample output layout
 
 Each sample lands in a zero-padded numbered directory:
@@ -504,6 +673,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 | v0.2-int | Sibling ecosystem integrations (SoundfontManager, MIDI indexer, audio indexer) | ✓ COMPLETE | — |
 | v0.2 | Genre system — GenreSpec engine, 8 built-in genres, chord vocab, CLI, notebook | ✓ COMPLETE | 8/8 |
 | v0.3 | Higher-order Markov — 2nd-order chords + melody, two-layer quality gate, calibration | ✓ COMPLETE | 3/3 |
+| v0.4 | Sample composition — real audio samples alongside/substituting FluidSynth layers | ✓ COMPLETE | M1–M5 |
 
 ### Phases delivered
 
@@ -517,6 +687,7 @@ Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, bea
 - **Phase 7 — Ship v0.1.** README refresh, GitHub Actions CI (87% coverage, determinism regression), `v0.1.0` tag.
 - **v0.2 integrations — Sibling ecosystem.** Three opt-in integrations with zero new hard deps. (1) `soundfont_manager`: tag-based soundfont selection via `Config.soundfont_manager_db`; determinism preserved via `sf.path`-sorted candidates. (2) `midi_file_manager`: `musicgen index-midi` command indexes MIDI files into a `MidiManager` db with ground-truth enrichment. (3) `audio_sample_manager`: `musicgen index-audio` command indexes WAV stems into a `SampleManager` db for cross-library queries. All packages lazy-imported; `ImportError` falls back gracefully.
 - **v0.2 — Genre system.** `GenreSpec` dataclass with hard bounds (tempo, swing), soft weight dicts (time-sig, scale, chord type, inversion, layer probs), FX profile multipliers, and per-layer soundfont tag overrides. `merge_genres` composition algebra (range intersection, weighted-average soft dicts, union of drum pools). 8 built-in genres (`jazz`, `hip-hop`, `blues`, `pop`, `electronic`, `latin`, `reggae`, `classical`), each with `spec.json` + time-sig drum pattern files. Extended chord vocabulary (maj7, m7, dom7, dim7, m7b5, sus2, sus4, add9, aug + all inversions). CLI: `--genre jazz`, `--genre jazz --genre latin`, `musicgen list-genres`. `notebooks/musicgen_demo.ipynb` 12-section demo notebook. Tag `v0.2.0`.
+- **v0.4 — Sample composition.** Five milestones: (M1) `musicality` extracted as a standalone installable package (`src/musicality/`) with `score()`, `explain()`, `batch_score()` public API and `musicality score|explain|batch` CLI — usable on any WAV without musicgen. (M2) `musicality_score` + `musicality_components` fields added to `audio_sample_manager.SampleMetadata`; `annotate_sample(compute_musicality=True)` invokes scoring; `select_for_layer(min_musicality_score=)` quality-gate filter added. (M3) `SampleLayerRule` + `SampleCompositionConfig` rules engine wired as `Config.sample_composition`; `select_samples()` calls `SampleSelector` per layer. (M4) `sample_mixer.py`: per-part BPM stretch (rubberband), key shift (librosa), loop tiling (numpy), pre-mix substitution hook, post-mix alongside/adlib overlay. (M5) `musicgen samples build` CLI command for batch WAV annotation → library JSON; `used_samples` provenance field in `sample.json`; `--sample-db / --sample-LAYER / --sample-gain / --sample-min-score` flags on `musicgen generate`. Requires `pip install 'musicgen[samples]'`.
 - **v0.3 — Higher-order Markov + quality gate.** 2nd-order chord transition matrices per genre (`genres/*/chord_transitions.json`), configurable-order melody Markov over scale-degree intervals (`generators/melody.py`). Two-layer musicality redesign: Layer 1 MIDI pre-filter (`check_midi_quality` — hard checks for empty/stuck/extreme-range + soft symbolic metrics: Krumhansl–Schmuckler key correlation, scale adherence, melodic step fraction, n-gram entropy, LZ compression ratio); Layer 2 audio integrity (`_render_integrity` — clipping, DC offset, silence, crest factor, applied as penalty to `MusicalityAnalyzer` output). Quality-gate regeneration loop: `Config.min_musicality_score` + `Config.max_attempts` — `generate()` re-rolls up to `max_attempts` times with distinct seeds; `SampleResult.attempt` and `manifest attempt` field track winning attempt. Calibration harness (`musicgen.calibrate.run_midi_calibration`, `suggest_threshold`) derives empirical thresholds from reference-good vs adversarial MIDI sets without human labels. See [`docs/musicality-scoring.md`](docs/musicality-scoring.md) for theoretical basis and implementation details. 1197 fast tests. Tag `v0.3.0`.
 
 ## Architecture (post-Phase 5)
