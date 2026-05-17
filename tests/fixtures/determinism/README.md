@@ -20,12 +20,12 @@ SHA-256 goldens captured on a pinned-FluidSynth host. See CONTEXT.md D-28 and th
 - `sample_index = 0`
 - `dataset_root = <pytest tmp_path>`
 - Config defaults for everything else (split_ratios = 80/10/10, sum_of_stems_epsilon = 1e-3)
-- `importlib.metadata.version("musicgen")` MUST resolve to `"0.1.0"` (run `pip install -e .` first — `"0.1.0+uninstalled"` would poison the sample.json hash per RESEARCH Pitfall 4)
+- `importlib.metadata.version("musicgen")` MUST resolve to the current `pyproject.toml` version (currently `"0.5.0"`). Run `pip install -e .` first — `"+uninstalled"` suffix would poison the sample.json hash per RESEARCH Pitfall 4. Re-capture goldens after every version bump.
 
 ## Regeneration
 
 ```
-.venv/bin/pip install -e ".[dev]"    # ensure musicgen_version resolves to "0.1.0", NOT "+uninstalled"
+.venv/bin/pip install -e ".[dev]"    # ensure musicgen_version resolves to the pyproject version, NOT "+uninstalled"
 .venv/bin/pytest -m slow --regen-goldens tests/test_determinism_golden.py
 ```
 

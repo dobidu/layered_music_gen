@@ -30,11 +30,12 @@ musicgen samples build \
 
 # Step 2 — generate with samples mixed in
 musicgen generate \
-    --genre hiphop \
+    --seed 1 \
+    --genre hip-hop \
     --sample-db ~/my_samples/library.json \
     --sample-beat alongside \
     --sample-bassline substitution \
-    --output ./out
+    --out ./out
 ```
 
 The library JSON is reusable. Rebuild it only when you add or remove files.
@@ -200,14 +201,17 @@ class SampleCompositionConfig:
 
 ### Config integration
 
-`SampleCompositionConfig` attaches to the top-level `MusicgenConfig`:
+`SampleCompositionConfig` attaches to the top-level `Config`:
 
 ```python
-from musicgen.config import MusicgenConfig
+from config import Config
 from musicgen.sample_composition import SampleCompositionConfig, SampleLayerRule
 
-config = MusicgenConfig(
-    genre="hiphop",
+cfg = Config(
+    global_seed=42,
+    sample_index=0,
+    dataset_root="./dataset",
+    genre=["hip-hop"],
     sample_composition=SampleCompositionConfig(
         sample_db_path="/data/samples/library.json",
         global_min_musicality=0.6,
@@ -215,7 +219,7 @@ config = MusicgenConfig(
             "beat": SampleLayerRule(
                 layer="beat",
                 mode="alongside",
-                genre=["hiphop", "trap"],
+                genre=["hip-hop", "trap"],
                 gain_db=-6.0,
                 max_bpm_stretch_pct=8.0,
             ),
@@ -239,17 +243,16 @@ config = MusicgenConfig(
 ### Full generate() example
 
 ```python
-from musicgen.api import generate
+import json, pathlib
+from musicgen import generate
 
-results = generate(config)
+result = generate(cfg)
+print(f"sample_dir: {result.sample_dir}")
+print(f"mix: {result.mix_path}")
 
-for part in results:
-    print(part.output_path)
-    if part.sample_json_path:
-        import json
-        used = json.loads(open(part.sample_json_path).read())["used_samples"]
-        for layer, info in used.items():
-            print(f"  {layer}: {info['name']} (mode={info['mode']})")
+sj = json.loads(pathlib.Path(result.sample_json_path).read_text())
+for layer, info in sj.get("used_samples", {}).items():
+    print(f"  {layer}: {info['name']} (mode={info['mode']})")
 ```
 
 ---

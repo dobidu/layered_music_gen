@@ -751,7 +751,7 @@ Zero bare `random.*` calls anywhere in `src/musicgen/` — enforced by an AST st
 ## Tests
 
 ```bash
-pytest -m "not slow"      # Fast suite (default CI) — 1047 tests in ~4s
+pytest -m "not slow"      # Fast suite (default CI) — 1273 tests in ~10s
 pytest -m slow            # Slow suite — requires FluidSynth + .sf2 pools
 pytest                    # Everything
 ```
