@@ -1,5 +1,9 @@
 # musicgen — synthetic music dataset generator
 
+[![Open In Colab — demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dobidu/layered_music_gen/blob/main/notebooks/musicgen_demo.ipynb)
+[![Open In Colab — neural](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dobidu/layered_music_gen/blob/main/notebooks/neural_generators.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/dobidu/layered_music_gen/main?urlpath=lab/tree/notebooks)
+
 A Python library for generating **reproducible, fully-annotated** synthetic music samples for ML/MIR research. Each sample lands in a canonical per-sample directory with the mixed audio, per-layer stems, per-layer MIDI, and a rich JSON annotation describing every musical and synthesis parameter.
 
 Suitable for training models that learn music tagging, source separation, beat/tempo/downbeat detection, and audio→MIDI transcription at the 1k–10k sample scale.
@@ -751,6 +755,18 @@ pytest -m "not slow"      # Fast suite (default CI) — 1047 tests in ~4s
 pytest -m slow            # Slow suite — requires FluidSynth + .sf2 pools
 pytest                    # Everything
 ```
+
+## Try in the cloud
+
+Three zero-install paths for trying musicgen without setting up FluidSynth locally:
+
+| Platform | What you get | How |
+|---|---|---|
+| **Google Colab** | Each notebook has a top-of-file setup cell that `apt install`s FluidSynth + `fluid-soundfont-gm` and pip-installs musicgen on first run. Click a Colab badge at the top of this README. | [Demo](https://colab.research.google.com/github/dobidu/layered_music_gen/blob/main/notebooks/musicgen_demo.ipynb) · [Sample composition](https://colab.research.google.com/github/dobidu/layered_music_gen/blob/main/notebooks/sample_composition.ipynb) · [Neural generators](https://colab.research.google.com/github/dobidu/layered_music_gen/blob/main/notebooks/neural_generators.ipynb) |
+| **mybinder.org** | JupyterLab in the browser with all apt deps + soundfont pre-wired. Reproducible build from `binder/apt.txt`, `binder/requirements.txt`, `binder/postBuild`. Cold build ~5–10 min. | [Launch](https://mybinder.org/v2/gh/dobidu/layered_music_gen/main?urlpath=lab/tree/notebooks) |
+| **HuggingFace Spaces** | Gradio web UI wrapping `musicgen.generate()`. Visitors pick seed/genre/backend, get back `mix.wav` + `sample.json`. Source under `hf_space/` (Dockerfile + `app.py`); push to a new Docker Space to deploy. | See [`hf_space/README.md`](hf_space/README.md) |
+
+The Colab + Binder bootstraps both use the `FluidR3_GM.sf2` GM soundfont shipped by the `fluid-soundfont-gm` apt package and symlink it into all four `sf/<layer>/` directories — a single timbre per layer suffices for the demo, but fork and curate `.sf2` pools for higher-quality output.
 
 Coverage targets ≥ 80% on pure functions (samplers, generators, annotator, beats, time-sig registry, validators).
 

@@ -1,0 +1,4 @@
+fluidsynth
+fluid-soundfont-gm
+ffmpeg
+libsndfile1

@@ -1,0 +1,8 @@
+# Binder picks up requirements.txt for pip deps.
+# We install the package itself (with neural extra) from the working repo.
+# Other deps come transitively from pyproject.toml.
+-e .[neural]
+jupyter
+matplotlib
+pretty_midi
+ipywidgets

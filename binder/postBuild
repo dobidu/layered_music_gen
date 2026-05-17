@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Binder postBuild — runs after apt + pip install.
+# Symlinks the FluidR3_GM soundfont (shipped by fluid-soundfont-gm apt package)
+# into the per-layer sf/<layer>/ directories so musicgen finds at least one .sf2
+# per layer. Users can replace with curated soundfonts after launch.
+
+set -euo pipefail
+
+SF2_SRC="/usr/share/sounds/sf2/FluidR3_GM.sf2"
+if [ ! -f "$SF2_SRC" ]; then
+    echo "WARNING: $SF2_SRC not found — fluid-soundfont-gm apt install may have failed"
+    exit 0
+fi
+
+for layer in beat melody harmony bassline; do
+    mkdir -p "sf/$layer"
+    ln -sf "$SF2_SRC" "sf/$layer/FluidR3_GM.sf2"
+done
+
+echo "Linked FluidR3_GM.sf2 into sf/{beat,melody,harmony,bassline}/"
